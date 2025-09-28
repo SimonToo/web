@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件管理器 - GitHub Pages</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .toolbar {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            max-width: 400px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 5px;
+        }
+
+        .view-btn {
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #dee2e6;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .view-btn:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+
+        .view-btn:last-child {
+            border-radius: 0 8px 8px 0;
+        }
+
+        .view-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .file-container {
+            padding: 20px;
+            min-height: 400px;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+        }
+
+        .file-list {
+            display: none;
+        }
+
+        .file-list.active {
+            display: block;
+        }
+
+        .file-grid.active {
+            display: grid;
+        }
+
+        .file-item {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: white;
+            border: 2px solid transparent;
+        }
+
+        .file-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-color: #667eea;
+        }
+
+        .file-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #495057;
+            word-break: break-all;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .file-list-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .file-list-item:hover {
+            background: #f8f9fa;
+            transform: translateX(5px);
+        }
+
+        .file-list-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            min-width: 30px;
+        }
+
+        .file-list-details {
+            flex: 1;
+        }
+
+        .file-list-name {
+            font-weight: 500;
+            color: #212529;
+        }
+
+        .file-list-meta {
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 3px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn {
+            padding: 5px 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .action-btn:hover {
+            background: #0056b3;
+        }
+
+        .delete-btn {
+            background: #dc3545;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #212529;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+
+        .empty-state-icon {
+            font-size: 72px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .file-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .search-box {
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📁 文件管理器</h1>
+            <p>GitHub Pages 静态文件管理系统</p>
+        </div>
+        
+        <div class="toolbar">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                <span>📤</span> 上传文件
+            </button>
+            <input type="file" id="fileInput" class="file-input" multiple onchange="handleFileUpload(event)">
+            
+            <button class="btn btn-secondary" onclick="addSampleFiles()">
+                <span>➕</span> 添加示例文件
+            </button>
+            
+            <button class="btn btn-secondary" onclick="clearAllFiles()">
+                <span>🗑️</span> 清空所有
+            </button>
+            
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="搜索文件..." onkeyup="searchFiles()">
+            </div>
+            
+            <div class="view-toggle">
+                <button class="view-btn active" onclick="toggleView('grid')">
+                    <span>⊞</span>
+                </button>
+                <button class="view-btn" onclick="toggleView('list')">
+                    <span>☰</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="file-container">
+            <div id="fileGrid" class="file-grid active"></div>
+            <div id="fileList" class="file-list"></div>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">📂</div>
+                <h3>暂无文件</h3>
+                <p>点击"上传文件"或"添加示例文件"开始</p>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="fileCount">0</div>
+                <div class="stat-label">文件总数</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalSize">0 KB</div>
+                <div class="stat-label">总大小</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="lastUpdate">-</div>
+                <div class="stat-label">最后更新</div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">提示</h2>
+            </div>
+            <div class="modal-body" id="modalBody">
+                内容
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 文件存储（使用localStorage模拟）
+        let files = JSON.parse(localStorage.getItem('fileManager') || '[]');
+        let currentView = 'grid';
+
+        // 初始化
+        window.onload = function() {
+            renderFiles();
+            updateStats();
+        };
+
+        // 文件类型图标映射
+        const fileIcons = {
+            'pdf': '📄',
+            'doc': '📝',
+            'docx': '📝',
+            'xls': '📊',
+            'xlsx': '📊',
+            'ppt': '🎯',
+            'pptx': '🎯',
+            'txt': '📃',
+            'zip': '🗜️',
+            'rar': '🗜️',
+            'jpg': '🖼️',
+            'jpeg': '🖼️',
+            'png': '🖼️',
+            'gif': '🖼️',
+            'mp3': '🎵',
+            'mp4': '🎬',
+            'html': '🌐',
+            'css': '🎨',
+            'js': '⚡',
+            'json': '📦',
+            'default': '📎'
+        };
+
+        // 获取文件图标
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            return fileIcons[ext] || fileIcons.default;
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 处理文件上传
+        function handleFileUpload(event) {
+            const uploadedFiles = event.target.files;
+            
+            for (let file of uploadedFiles) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const newFile = {
+                        id: Date.now() + Math.random(),
+                        name: file.name,
+                        size: file.size,
+                        type: file.type,
+                        content: e.target.result,
+                        uploadDate: new Date().toLocaleDateString('zh-CN')
+                    };
+                    files.push(newFile);
+                    saveFiles();
+                    renderFiles();
+                    updateStats();
+                    showModal('上传成功', `文件 "${file.name}" 已成功上传！`);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // 添加示例文件
+        function addSampleFiles() {
+            const sampleFiles = [
+                { name: 'README.md', size: 2048, type: 'text/markdown', content: 'data:text/plain;base64,IyDmiJHnmoTpobnnm64=' },
+                { name: 'index.html', size: 5120, type: 'text/html', content: 'data:text/html;base64,PCFET0NUWVBFIGh0bWw+' },
+                { name: 'style.css', size: 3072, type: 'text/css', content: 'data:text/css;base64,Ym9keSB7IG1hcmdpbjogMDsgfQ==' },
+                { name: 'script.js', size: 4096, type: 'application/javascript', content: 'data:text/javascript;base64,Y29uc29sZS5sb2coJ0hlbGxvIFdvcmxkJyk7' },
+                { name: 'data.json', size: 1024, type: 'application/json', content: 'data:application/json;base64,eyJuYW1lIjogInRlc3QifQ==' },
+                { name: 'image.png', size: 10240, type: 'image/png', content: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' }
+            ];
+
+            sampleFiles.forEach(file => {
+                file.id = Date.now() + Math.random();
+                file.uploadDate = new Date().toLocaleDateString('zh-CN');
+            });
+
+            files = files.concat(sampleFiles);
+            saveFiles();
+            renderFiles();
+            updateStats();
+            showModal('添加成功', `已添加 ${sampleFiles.length} 个示例文件！`);
+        }
+
+        // 清空所有文件
+        function clearAllFiles() {
+            if (confirm('确定要清空所有文件吗？此操作不可恢复！')) {
+                files = [];
+                saveFiles();
+                renderFiles();
+                updateStats();
+                showModal('清空成功', '所有文件已被清空！');
+            }
+        }
+
+        // 删除文件
+        function deleteFile(id, event) {
+            if (event) event.stopPropagation();
+            if (confirm('确定要删除这个文件吗？')) {
+                files = files.filter(f => f.id !== id);
+                saveFiles();
+                renderFiles();
+                updateStats();
+            }
+        }
+
+        // 下载文件
+        function downloadFile(id, event) {
+            if (event) event.stopPropagation();
+            const file = files.find(f => f.id === id);
+            if (file) {
+                const a = document.createElement('a');
+                a.href = file.content;
+                a.download = file.name;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+        }
+
+        // 搜索文件
+        function searchFiles() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredFiles = files.filter(file => 
+                file.name.toLowerCase().includes(searchTerm)
+            );
+            renderFiles(filteredFiles);
+        }
+
+        // 切换视图
+        function toggleView(view) {
+            currentView = view;
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.view-btn').classList.add('active');
+            
+            const grid = document.getElementById('fileGrid');
+            const list = document.getElementById('fileList');
+            
+            if (view === 'grid') {
+                grid.classList.add('active');
+                list.classList.remove('active');
+            } else {
+                grid.classList.remove('active');
+                list.classList.add('active');
+            }
+            
+            renderFiles();
+        }
+
+        // 渲染文件
+        function renderFiles(filesToRender = files) {
+            const grid = document.getElementById('fileGrid');
+            const list = document.getElementById('fileList');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (filesToRender.length === 0) {
+                grid.innerHTML = '';
+                list.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            // 网格视图
+            grid.innerHTML = filesToRender.map(file => `
+                <div class="file-item" onclick="downloadFile(${file.id})">
+                    <div class="file-icon">${getFileIcon(file.name)}</div>
+                    <div class="file-name">${file.name}</div>
+                    <div class="file-size">${formatFileSize(file.size)}</div>
+                </div>
+            `).join('');
+            
+            // 列表视图
+            list.innerHTML = filesToRender.map(file => `
+                <div class="file-list-item">
+                    <div class="file-list-icon">${getFileIcon(file.name)}</div>
+                    <div class="file-list-details">
+                        <div class="file-list-name">${file.name}</div>
+                        <div class="file-list-meta">${formatFileSize(file.size)} • ${file.uploadDate}</div>
+                    </div>
+                    <div class="file-actions">
+                        <button class="action-btn" onclick="downloadFile(${file.id}, event)">下载</button>
+                        <button class="action-btn delete-btn" onclick="deleteFile(${file.id}, event)">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 保存文件到localStorage
+        function saveFiles() {
+            localStorage.setItem('fileManager', JSON.stringify(files));
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            document.getElementById('fileCount').textContent = files.length;
+            
+            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+            document.getElementById('totalSize').textContent = formatFileSize(totalSize);
+            
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = 
+                now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // 显示模态框
+        function showModal(title, message) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = message;
+            document.getElementById('modal').classList.add('active');
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
