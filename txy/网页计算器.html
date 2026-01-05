@@ -120,12 +120,12 @@
             <button class="clear" onclick="clearDisplay()">C</button>
             <button class="backspace" onclick="backspace()">⌫</button>
             <button class="operator" onclick="appendToDisplay('%')">%</button>
-            <button class="operator" onclick="appendToDisplay('/')">÷</button>
+            <button class="operator" onclick="appendToDisplay('÷')">÷</button>
             
             <button onclick="appendToDisplay('7')">7</button>
             <button onclick="appendToDisplay('8')">8</button>
             <button onclick="appendToDisplay('9')">9</button>
-            <button class="operator" onclick="appendToDisplay('*')">×</button>
+            <button class="operator" onclick="appendToDisplay('×')">×</button>
             
             <button onclick="appendToDisplay('4')">4</button>
             <button onclick="appendToDisplay('5')">5</button>
@@ -178,8 +178,12 @@
         
         function calculate() {
             try {
-                // 替换显示符号为计算符号
-                let expression = currentInput.replace(/×/g, '*').replace(/÷/g, '/');
+                // 在计算前将显示的符号转换为计算符号
+                let expression = currentInput;
+                
+                // 将显示的乘除符号转换为计算用的符号
+                expression = expression.replace(/×/g, '*');
+                expression = expression.replace(/÷/g, '/');
                 
                 // 处理百分比
                 expression = expression.replace(/(\d+)%/g, '($1/100)');
@@ -193,6 +197,9 @@
                 } else {
                     currentInput = parseFloat(result.toFixed(10)).toString();
                 }
+                
+                // 将计算结果中的乘除符号转换回显示符号
+                currentInput = currentInput.replace(/\*/g, '×').replace(/\//g, '÷');
                 
                 shouldResetDisplay = true;
                 updateDisplay();
@@ -211,8 +218,15 @@
                 appendToDisplay(key);
             } else if (key === '.') {
                 appendToDisplay('.');
-            } else if (key === '+' || key === '-' || key === '*' || key === '/') {
-                appendToDisplay(key);
+            } else if (key === '+') {
+                appendToDisplay('+');
+            } else if (key === '-') {
+                appendToDisplay('-');
+            } else if (key === '*') {
+                appendToDisplay('×'); // 将键盘*转换为显示符号×
+            } else if (key === '/') {
+                event.preventDefault(); // 阻止浏览器默认快捷键
+                appendToDisplay('÷'); // 将键盘/转换为显示符号÷
             } else if (key === 'Enter' || key === '=') {
                 calculate();
             } else if (key === 'Escape' || key === 'c' || key === 'C') {
