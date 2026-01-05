@@ -3,128 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub Pro - 响应式全能版</title>
+    <title>GitHub Pro - 旗舰管理版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
-        /* 全屏布局 */
         .full-modal { display: none; position: fixed; inset: 0; width: 100vw; height: 100vh; background: white; z-index: 9999; flex-direction: column; }
-        .iframe-container { flex: 1; width: 100%; height: 100%; overflow: hidden; }
-        iframe { width: 100%; height: 100%; border: none; background: white; }
         #ace-editor { flex: 1; width: 100%; height: 100%; font-size: 14px; }
 
-        /* 响应式网格布局定义 */
+        /* 响应式列表布局 */
         .grid-layout { 
             display: grid; 
-            grid-template-columns: 40px minmax(150px, 3fr) 170px 100px 90px 145px; 
+            grid-template-columns: 45px minmax(150px, 3fr) 170px 100px 90px 150px; 
             align-items: center;
             gap: 12px;
         }
-        /* 移动端 (平板以下) 适配 */
         @media (max-width: 1024px) {
             .grid-layout { grid-template-columns: 40px minmax(120px, 1fr) 140px; }
             .col-hide { display: none !important; }
-            .action-btns { opacity: 1 !important; transform: none !important; } /* 移动端图标始终可见 */
         }
 
         .file-item { transition: all 0.2s; border-left: 3px solid transparent; }
         .file-item.checked-row { background-color: #eff6ff !important; border-left-color: #3b82f6 !important; }
         .file-item:hover { background-color: #f8fafc; }
         
-        /* 桌面端功能按钮悬停逻辑 */
+        /* 移动端图标始终显示，PC端悬停显示 */
+        .action-btns { transition: all 0.2s ease; }
         @media (min-width: 1025px) {
-            .action-btns { opacity: 0; transform: translateX(5px); transition: all 0.2s; }
+            .action-btns { opacity: 0; transform: translateX(5px); }
             .file-item:hover .action-btns { opacity: 1; transform: translateX(0); }
         }
 
-        .sort-header { cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .sort-header { cursor: pointer; user-select: none; transition: all 0.2s; white-space: nowrap; }
         .sort-active { color: #3b82f6 !important; font-weight: 900; }
 
-        .custom-scroll::-webkit-scrollbar { height: 4px; width: 4px; }
+        .custom-scroll::-webkit-scrollbar { height: 4px; width: 6px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        #content-loader { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        input[type="checkbox"] { width: 1.2rem; height: 1.2rem; cursor: pointer; accent-color: #2563eb; }
+        #content-loader { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        input[type="checkbox"] { width: 1.15rem; height: 1.15rem; cursor: pointer; accent-color: #2563eb; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans select-none overflow-x-hidden">
 
 <div id="content-loader">
     <div class="flex flex-col items-center">
-        <div class="w-12 h-12 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
-        <span class="text-[10px] font-black text-slate-500 mt-4 uppercase tracking-[0.2em]" id="cl-text">正在处理...</span>
+        <div class="w-10 h-10 border-4 border-slate-100 border-t-blue-600 rounded-full animate-spin"></div>
+        <span class="text-[10px] font-black text-slate-500 mt-4 uppercase tracking-widest" id="cl-text">正在处理同步...</span>
     </div>
 </div>
 
 <div class="max-w-7xl mx-auto py-4 md:py-8 px-3 md:px-6">
     <header class="mb-6 flex flex-wrap justify-between items-center gap-4 px-2">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <i class="fas fa-terminal"></i>
+            <div class="w-10 h-10 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                <i class="fas fa-database"></i>
             </div>
             <div>
-                <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tighter italic uppercase">Code<span class="text-blue-600">Station</span></h1>
-                <p id="status-text" class="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mt-1">移动优先 · 云端驱动</p>
+                <h1 class="text-xl md:text-2xl font-black text-slate-900 tracking-tighter italic uppercase leading-none">CODE<span class="text-blue-600">STATION</span></h1>
+                <p id="status-text" class="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-1">智能排序 · 外部链接预览版</p>
             </div>
         </div>
-        <button onclick="clearConfig()" class="text-[10px] font-black text-slate-400 border border-slate-200 px-4 py-2 rounded-full hover:bg-red-50 hover:text-red-500 transition uppercase">重置配置</button>
+        <button onclick="clearConfig()" class="text-[10px] font-black text-slate-400 border border-slate-200 px-4 py-2 rounded-full hover:bg-red-50 hover:text-red-500 transition">重置设置</button>
     </header>
 
-    <div class="bg-white p-5 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
+    <div class="bg-white p-5 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
         <form onsubmit="event.preventDefault(); fetchRepoContents('');" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="space-y-1">
-                <label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Username</label>
-                <input id="owner" type="text" placeholder="GitHub 用户名" class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm font-medium">
-            </div>
-            <div class="space-y-1">
-                <label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Repository</label>
-                <input id="repo" type="text" placeholder="仓库名" class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm font-medium">
-            </div>
-            <div class="space-y-1">
-                <label class="text-[9px] font-black text-slate-400 ml-2 uppercase">Access Token</label>
-                <input id="token" type="password" placeholder="Token" class="w-full bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm font-medium">
-            </div>
-            <div class="flex items-end">
-                <button type="submit" class="w-full bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-600 transition shadow-lg py-3.5">连接同步</button>
-            </div>
+            <input id="owner" type="text" placeholder="GitHub 用户名" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
+            <input id="repo" type="text" placeholder="仓库名" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
+            <input id="token" type="password" placeholder="GitHub Token" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
+            <button type="submit" class="bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-600 transition shadow-lg py-3.5">连接云端</button>
         </form>
     </div>
 
     <div class="flex flex-col gap-4 mb-4 bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100">
         <div class="flex flex-wrap gap-2 items-center">
-            <button onclick="document.getElementById('fileInputBatch').click()" class="flex-1 sm:flex-none px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase shadow-md">批量上传</button>
-            <button onclick="document.getElementById('folderInput').click()" class="flex-1 sm:flex-none px-5 py-2.5 bg-indigo-600 text-white text-[10px] font-black rounded-xl uppercase shadow-md">目录上传</button>
-            <button onclick="actionNewFolder()" class="flex-1 sm:flex-none px-5 py-2.5 text-slate-500 border border-slate-200 text-[10px] font-black rounded-xl uppercase">新建文件夹</button>
+            <button onclick="document.getElementById('fileInputBatch').click()" class="px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase shadow-md">批量上传</button>
+            <button onclick="document.getElementById('folderInput').click()" class="px-5 py-2.5 bg-indigo-600 text-white text-[10px] font-black rounded-xl uppercase shadow-md">上传文件夹</button>
+            <button onclick="actionNewFolder()" class="px-5 py-2.5 text-slate-500 border border-slate-200 text-[10px] font-black rounded-xl uppercase">新建文件夹</button>
             
             <div class="flex-1 hidden md:block"></div>
             
-            <div id="batch-actions" class="hidden flex flex-wrap items-center gap-2 bg-blue-50/50 p-2 px-4 rounded-2xl border border-blue-100">
+            <div id="batch-actions" class="hidden flex flex-wrap items-center gap-2 bg-blue-50/50 p-2 rounded-2xl border border-blue-100">
                 <button onclick="batchDownload()" class="text-[9px] font-black uppercase text-blue-600"><i class="fas fa-download mr-1"></i>打包下载</button>
                 <button onclick="setBatchClipboard('copy')" class="text-[9px] font-black uppercase text-blue-600">复制</button>
                 <button onclick="setBatchClipboard('cut')" class="text-[9px] font-black uppercase text-orange-600">剪切</button>
-                <button onclick="batchDelete()" class="text-[9px] font-black uppercase text-red-600">批量删除</button>
-                <button onclick="clearSelection()" class="ml-2 text-[9px] font-black text-slate-400 hover:text-slate-600 uppercase underline">取消</button>
+                <button onclick="batchDelete()" class="text-[9px] font-black uppercase text-red-600">删除</button>
             </div>
         </div>
 
-        <button id="btn-paste-batch" onclick="actionBatchPaste()" class="hidden w-full py-3 bg-blue-600 text-white text-xs font-black rounded-2xl animate-pulse uppercase shadow-lg shadow-blue-100">粘贴项到此位置</button>
+        <button id="btn-paste-batch" onclick="actionBatchPaste()" class="hidden w-full py-3 bg-blue-600 text-white text-xs font-black rounded-2xl animate-pulse uppercase">粘贴项到当前目录</button>
 
         <div class="relative w-full">
             <i class="fas fa-search absolute left-4 top-3.5 text-slate-300 text-sm"></i>
-            <input id="searchInput" oninput="filterFiles()" type="text" placeholder="输入名称快速过滤列表..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-1 focus:ring-blue-200 outline-none font-medium">
+            <input id="searchInput" oninput="filterFiles()" type="text" placeholder="输入名称过滤当前目录内容..." class="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm focus:ring-1 focus:ring-blue-200 outline-none font-medium">
         </div>
     </div>
 
     <div class="bg-slate-900 rounded-t-[1.5rem] border-x border-t border-slate-900 overflow-hidden">
-        <div class="p-4 grid-layout items-center text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+        <div class="p-4 grid-layout items-center text-[10px] font-black text-slate-500 uppercase tracking-[0.15em] leading-none">
             <div class="flex justify-center"><input type="checkbox" id="selectAllHeader" onclick="toggleSelectAll()"></div>
-            <div class="sort-header" id="header-name" onclick="handleSortClick('name')">名称 <span class="sort-icon"></span></div>
+            <div class="sort-header" id="header-name" onclick="handleSortClick('name')">名称 (Name) <span class="sort-icon"></span></div>
             <div class="sort-header col-hide text-center" id="header-time" onclick="handleSortClick('modified_at')">修改时间 <span class="sort-icon"></span></div>
             <div class="sort-header col-hide text-center" id="header-type" onclick="handleSortClick('type_label')">类型 <span class="sort-icon"></span></div>
             <div class="sort-header col-hide text-right" id="header-size" onclick="handleSortClick('size')">大小 <span class="sort-icon"></span></div>
-            <div class="text-right pr-4 italic">管理</div>
+            <div class="text-right pr-4 italic">管理操作</div>
         </div>
     </div>
 
@@ -132,44 +116,34 @@
         <div id="loader" class="hidden absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
             <div class="w-10 h-10 border-4 border-slate-100 border-t-blue-500 rounded-full animate-spin"></div>
         </div>
-        
         <ul id="file-list" class="divide-y divide-slate-50">
-            <li class="p-24 text-center text-slate-200 font-black italic uppercase text-xs tracking-widest">请连接仓库同步</li>
+            <li class="p-24 text-center text-slate-200 font-black italic uppercase text-xs tracking-widest leading-none">等待云端同步...</li>
         </ul>
     </div>
     
     <nav id="breadcrumb" class="mt-4 flex items-center text-[9px] font-black text-slate-400 px-4 py-3 bg-white border border-slate-100 rounded-full w-full overflow-x-auto whitespace-nowrap custom-scroll uppercase"></nav>
 </div>
 
+<input type="file" id="fileInputBatch" class="hidden" multiple onchange="handleBatchUpload(this.files)">
+<input type="file" id="folderInput" class="hidden" webkitdirectory onchange="handleBatchUpload(this.files)">
+
 <div id="ideModal" class="full-modal">
     <div class="h-14 bg-slate-900 text-white flex items-center justify-between px-4 shrink-0 shadow-lg border-b border-white/5">
-        <button onclick="closeIDE()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-800 transition"><i class="fas fa-arrow-left"></i></button>
-        <span id="ide-filename" class="font-mono text-[10px] text-blue-400 truncate px-4 tracking-tighter"></span>
-        <button onclick="saveToGithub()" class="bg-blue-600 px-5 py-1.5 rounded-xl text-[10px] font-black uppercase">保存修改</button>
+        <button onclick="closeIDE()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-800 transition"><i class="fas fa-arrow-left text-sm"></i></button>
+        <span id="ide-filename" class="font-mono text-[10px] text-blue-400 truncate px-4 tracking-widest uppercase">代码编辑模式</span>
+        <button onclick="saveToGithub()" class="bg-blue-600 px-5 py-1.5 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-blue-900/40">保存修改</button>
     </div>
     <div id="ace-editor" class="custom-scroll"></div>
 </div>
 
-<div id="runModal" class="full-modal">
-    <div class="h-14 bg-emerald-900 text-white flex items-center justify-between px-4 shadow-lg shrink-0">
-        <button onclick="closeRun()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-emerald-800 transition"><i class="fas fa-arrow-left"></i></button>
-        <span id="run-filename" class="font-mono text-[10px] text-emerald-300 truncate px-4 tracking-tighter uppercase"></span>
-        <button onclick="refreshRun()" class="bg-emerald-700 px-5 py-1.5 rounded-xl text-[10px] font-black uppercase">刷新</button>
-    </div>
-    <div class="iframe-container"><iframe id="run-frame" sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"></iframe></div>
-</div>
-
-<input type="file" id="fileInputBatch" class="hidden" multiple onchange="handleBatchUpload(this.files)">
-<input type="file" id="folderInput" class="hidden" webkitdirectory onchange="handleBatchUpload(this.files)">
-
 <script>
-    // --- 状态与排序引擎 ---
+    // --- 配置与状态管理 ---
     let currentPath = localStorage.getItem('gh_last_path') || "";
     let allFiles = []; 
-    let sortConfig = { key: 'name', dir: 'asc' };
-    let editor, activeFile, selectedItems = [], clipboard = { items: [], action: null }, currentRunCode = "";
-
-    // A-Z + 中文拼音智能排序器
+    let sortConfig = { key: 'name', dir: 'asc' }; // 默认名称 A-Z
+    let editor, activeFile, selectedItems = [], clipboard = { items: [], action: null };
+    
+    // A-Z + 拼音排序器
     const collator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' });
 
     window.onload = () => {
@@ -180,12 +154,13 @@
         if (document.getElementById('owner').value && document.getElementById('repo').value) fetchRepoContents(currentPath);
     };
 
-    // --- 核心：异步数据获取 ---
+    // --- 核心逻辑：获取列表与自动采集时间 ---
     async function fetchRepoContents(path) {
         const owner = document.getElementById('owner').value.trim();
         const repo = document.getElementById('repo').value.trim();
         const token = document.getElementById('token').value.trim();
         if (!owner || !repo) return;
+        
         localStorage.setItem('gh_owner', owner); localStorage.setItem('gh_repo', repo); localStorage.setItem('gh_token', token);
         localStorage.setItem('gh_last_path', path); currentPath = path;
         
@@ -203,10 +178,13 @@
             });
 
             allFiles = data;
-            applySortingAndRender();
+            applySortingAndRender(); // 初始渲染
             updateBreadcrumb(path);
+
+            // 自动化：立即异步采集修改时间
             autoFetchTimestamps(owner, repo, token);
-        } catch (e) { alert("连接同步失败"); } 
+            
+        } catch (e) { alert("同步失败，请检查配置。"); } 
         finally { showLoader(false); }
     }
 
@@ -221,10 +199,10 @@
             } catch (e) {}
         });
         await Promise.all(promises);
-        applySortingAndRender();
+        applySortingAndRender(); 
     }
 
-    // --- 排序逻辑 ---
+    // --- 排序引擎 ---
     function handleSortClick(key) {
         sortConfig.dir = (sortConfig.key === key && sortConfig.dir === 'asc') ? 'desc' : 'asc';
         sortConfig.key = key;
@@ -236,7 +214,8 @@
         document.querySelectorAll('.sort-header').forEach(el => el.classList.remove('sort-active'));
         document.querySelectorAll('.sort-icon').forEach(el => el.innerHTML = '');
         
-        const activeHeader = document.getElementById(`header-${key === 'modified_at' ? 'time' : (key === 'type_label' ? 'type' : key)}`);
+        const activeHeaderId = key === 'modified_at' ? 'header-time' : (key === 'type_label' ? 'header-type' : `header-${key}`);
+        const activeHeader = document.getElementById(activeHeaderId);
         if (activeHeader) {
             activeHeader.classList.add('sort-active');
             activeHeader.querySelector('.sort-icon').innerHTML = dir === 'asc' ? '↑' : '↓';
@@ -253,7 +232,7 @@
         renderFiles(allFiles);
     }
 
-    // --- 渲染逻辑 ---
+    // --- UI 渲染 (核心：更换运行按钮为超链接) ---
     function renderFiles(files) {
         const list = document.getElementById('file-list');
         list.innerHTML = "";
@@ -269,10 +248,19 @@
 
         files.forEach(file => {
             const isDir = file.type === 'dir', canEdit = file.name.match(/\.(html|css|js|md|txt|json|xml|py|php|sql)$/i);
-            const timeStr = file.modified_at ? new Date(file.modified_at).toLocaleString('zh-CN', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false}).replace(/\//g,'-') : '读取中...';
+            const isHtml = file.name.endsWith('.html');
+            
+            // 格式化时间为 YYYY-MM-DD HH:mm
+            const timeStr = file.modified_at ? new Date(file.modified_at).toLocaleString('zh-CN', {
+                year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false
+            }).replace(/\//g,'-') : '同步中...';
+            
             const sizeStr = isDir ? '--' : (file.size/1024).toFixed(1) + ' KB';
             const isChecked = selectedItems.some(i => i.path === file.path);
             
+            // 重点：计算预览超链接
+            const previewUrl = `https://web.tuchong.tk/${file.path}`;
+
             const li = document.createElement('li');
             li.className = `file-item p-4 grid-layout ${isChecked ? 'checked-row' : ''}`;
             li.innerHTML = `
@@ -284,19 +272,20 @@
                 <div class="col-hide text-center text-[10px] font-bold text-slate-400">${timeStr}</div>
                 <div class="col-hide text-center text-[10px] font-bold text-slate-400">${file.type_label}</div>
                 <div class="col-hide text-right text-[10px] font-bold text-slate-400 tabular-nums">${sizeStr}</div>
+                
                 <div class="flex justify-end gap-1.5 action-btns">
-                    ${file.name.endsWith('.html') ? `<button onclick='actionRun(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition"><i class="fas fa-play text-[9px]"></i></button>` : ''}
-                    ${canEdit ? `<button onclick='actionEdit(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition"><i class="fas fa-edit text-[9px]"></i></button>` : ''}
-                    ${!isDir ? `<button onclick='singleDownload(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition"><i class="fas fa-download text-[9px]"></i></button>` : ''}
-                    <button onclick='actionRename(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center hover:bg-slate-500 hover:text-white transition"><i class="fas fa-pen text-[9px]"></i></button>
-                    <button onclick="deleteFile('${file.path}', '${file.sha}')" class="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-600 hover:text-white transition"><i class="fas fa-trash-alt text-[9px]"></i></button>
+                    ${isHtml ? `<a href="${previewUrl}" target="_blank" class="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition shadow-sm" title="外部预览"><i class="fas fa-external-link-alt text-[9px]"></i></a>` : ''}
+                    ${canEdit ? `<button onclick='actionEdit(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition shadow-sm" title="编辑代码"><i class="fas fa-edit text-[9px]"></i></button>` : ''}
+                    ${!isDir ? `<button onclick='singleDownload(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition shadow-sm" title="下载"><i class="fas fa-download text-[9px]"></i></button>` : ''}
+                    <button onclick='actionRename(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-7 h-7 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center hover:bg-slate-500 hover:text-white transition" title="重命名"><i class="fas fa-pen text-[9px]"></i></button>
+                    <button onclick="deleteFile('${file.path}', '${file.sha}')" class="w-7 h-7 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-600 hover:text-white transition" title="删除"><i class="fas fa-trash-alt text-[9px]"></i></button>
                 </div>
             `;
             list.appendChild(li);
         });
     }
 
-    // --- 功能实现：ACE 编辑器适配 ---
+    // --- 其余业务逻辑 (编辑器适配 & 批量管理) ---
     async function actionEdit(file) {
         activeFile = file;
         document.getElementById('ideModal').style.display = 'flex';
@@ -305,22 +294,16 @@
         if (!editor) {
             editor = ace.edit("ace-editor");
             editor.setTheme("ace/theme/tomorrow_night");
-            editor.setOptions({ 
-                fontSize: "15px", tabSize: 2, wrap: true, 
-                scrollPastEnd: 0.5, fadeFoldWidgets: true,
-                showPrintMargin: false, useWorker: false
-            });
+            editor.setOptions({ fontSize: "15px", tabSize: 2, wrap: true, scrollPastEnd: 0.5, showPrintMargin: false });
         }
         const ext = file.name.split('.').pop().toLowerCase();
         editor.session.setMode(`ace/mode/${{ html:'html',js:'javascript',css:'css',md:'markdown',py:'python',json:'json' }[ext] || 'text'}`);
-        showContentLoader(true, "LOADING CODE...");
+        showContentLoader(true, "正在读取云端代码...");
         const res = await fetch(file.download_url);
         editor.setValue(await res.text(), -1);
         showContentLoader(false);
-        editor.focus();
     }
 
-    // --- 其余功能逻辑同步集成 ---
     function handleCheckboxChange(el, path, toggle = false) {
         if(toggle) el.checked = !el.checked;
         const item = allFiles.find(f => f.path === path);
@@ -340,67 +323,74 @@
         document.getElementById('batch-actions').classList.toggle('hidden', !selectedItems.length);
     }
 
-    async function singleDownload(file) {
-        showContentLoader(true, "Downloading...");
-        const res = await fetch(file.download_url);
-        saveAs(await res.blob(), file.name);
-        showContentLoader(false);
-    }
-
-    async function batchDownload() {
-        const zip = new JSZip();
-        const files = selectedItems.filter(i => i.type !== 'dir');
-        if(!files.length) return alert("请选文件");
-        showContentLoader(true, "Zipping...");
-        for (let f of files) {
-            const r = await fetch(f.download_url);
-            zip.file(f.name, await r.blob());
-        }
-        saveAs(await zip.generateAsync({type:"blob"}), `backup_${Date.now()}.zip`);
-        showContentLoader(false);
-    }
-
-    async function saveToGithub() {
-        const content = btoa(unescape(encodeURIComponent(editor.getValue())));
-        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${activeFile.path}`, {
-            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-            body: JSON.stringify({ message: "Update file", content, sha: activeFile.sha })
-        });
-        alert("已成功推送到 GitHub");
-    }
-
     async function handleBatchUpload(fileList) {
-        const token = localStorage.getItem('gh_token');
-        showLoader(true);
+        const token = localStorage.getItem('gh_token'); showLoader(true);
         for (let file of fileList) {
             const target = currentPath ? `${currentPath}/${file.webkitRelativePath || file.name}` : (file.webkitRelativePath || file.name);
             const base64 = await new Promise(r => { const rd = new FileReader(); rd.readAsDataURL(file); rd.onload = () => r(rd.result.split(',')[1]); });
             await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${target}`, {
-                method: 'PUT', headers: { 'Authorization': `token ${token}` },
-                body: JSON.stringify({ message: "Cloud Upload", content: base64 })
+                method: 'PUT', headers: { 'Authorization': `token ${token}` }, body: JSON.stringify({ message: "Upload", content: base64 })
             });
         }
         fetchRepoContents(currentPath);
     }
 
-    async function actionBatchPaste() {
+    async function batchDownload() {
+        const zip = new JSZip(); const files = selectedItems.filter(i => i.type !== 'dir');
+        if(!files.length) return alert("请先选文件");
+        showContentLoader(true, "打包 ZIP 中...");
+        for (let file of files) { const res = await fetch(file.download_url); zip.file(file.name, await res.blob()); }
+        saveAs(await zip.generateAsync({type:"blob"}), `backup_${Date.now()}.zip`);
+        showContentLoader(false);
+    }
+
+    async function batchDelete() {
+        if(!confirm(`删除 ${selectedItems.length} 个项目？`)) return;
         showLoader(true);
-        for(let item of clipboard.items) {
-            const res = await fetch(item.download_url);
-            const content = btoa(unescape(encodeURIComponent(await res.text())));
-            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+item.name:item.name}`, {
-                method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-                body: JSON.stringify({ message: "Paste", content })
+        for (let item of selectedItems) {
+            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
+                method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Delete", sha: item.sha })
             });
-            if (clipboard.action === 'cut') {
-                await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
-                    method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-                    body: JSON.stringify({ message: "Clean", sha: item.sha })
-                });
-            }
         }
-        clipboard = { items: [], action: null };
-        document.getElementById('btn-paste-batch').classList.add('hidden');
+        fetchRepoContents(currentPath);
+    }
+
+    async function saveToGithub() {
+        const content = btoa(unescape(encodeURIComponent(editor.getValue())));
+        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${activeFile.path}`, {
+            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Update", content, sha: activeFile.sha })
+        });
+        alert("已成功保存");
+    }
+
+    async function actionRename(file) {
+        const n = prompt("新名称:", file.name); if(!n || n === file.name) return;
+        showLoader(true);
+        const res = await (await fetch(file.download_url)).text();
+        const content = btoa(unescape(encodeURIComponent(res)));
+        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+n:n}`, {
+            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Rename", content })
+        });
+        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${file.path}`, {
+            method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Clean", sha: file.sha })
+        });
+        fetchRepoContents(currentPath);
+    }
+
+    async function deleteFile(p, sha) {
+        if(!confirm("确定删除?")) return;
+        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${p}`, {
+            method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Delete", sha })
+        });
+        fetchRepoContents(currentPath);
+    }
+
+    async function actionNewFolder() {
+        const n = prompt("文件夹名:"); if(!n) return;
+        showLoader(true);
+        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+n+'/.keep':n+'/.keep'}`, {
+            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "New dir", content: btoa(" ") })
+        });
         fetchRepoContents(currentPath);
     }
 
@@ -410,77 +400,36 @@
         clearSelection();
     }
 
-    async function actionRename(file) {
-        const n = prompt("新名称:", file.name); if(!n || n === file.name) return;
+    async function actionBatchPaste() {
         showLoader(true);
-        const res = await (await fetch(file.download_url)).text();
-        const content = btoa(unescape(encodeURIComponent(res)));
-        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+n:n}`, {
-            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-            body: JSON.stringify({ message: "Rename", content })
-        });
-        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${file.path}`, {
-            method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-            body: JSON.stringify({ message: "Rename cleanup", sha: file.sha })
-        });
-        fetchRepoContents(currentPath);
-    }
-
-    async function deleteFile(p, sha) {
-        if(!confirm("确定要删除吗?")) return;
-        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${p}`, {
-            method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-            body: JSON.stringify({ message: "Delete", sha })
-        });
-        fetchRepoContents(currentPath);
-    }
-
-    async function batchDelete() {
-        if(!confirm(`确认删除 ${selectedItems.length} 个项目？`)) return;
-        showLoader(true);
-        for (let item of selectedItems) {
-            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
-                method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-                body: JSON.stringify({ message: "Batch Delete", sha: item.sha })
+        for(let item of clipboard.items) {
+            const res = await fetch(item.download_url);
+            const content = btoa(unescape(encodeURIComponent(await res.text())));
+            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+item.name:item.name}`, {
+                method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Paste", content })
             });
+            if (clipboard.action === 'cut') {
+                await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
+                    method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` }, body: JSON.stringify({ message: "Clean", sha: item.sha })
+                });
+            }
         }
+        clipboard = { items: [], action: null }; document.getElementById('btn-paste-batch').classList.add('hidden');
         fetchRepoContents(currentPath);
     }
 
-    async function actionNewFolder() {
-        const n = prompt("文件夹名:"); if(!n) return;
-        showLoader(true);
-        await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+n+'/.keep':n+'/.keep'}`, {
-            method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
-            body: JSON.stringify({ message: "New Dir", content: btoa(" ") })
-        });
-        fetchRepoContents(currentPath);
-    }
-
-    async function actionRun(file) {
-        document.getElementById('runModal').style.display = 'flex';
-        document.getElementById('run-filename').innerText = file.path;
-        const res = await fetch(file.download_url);
-        currentRunCode = await res.text();
-        const blob = new Blob([new TextEncoder().encode(currentRunCode)], { type: 'text/html;charset=utf-8' });
-        if (window.runUrl) URL.revokeObjectURL(window.runUrl);
-        window.runUrl = URL.createObjectURL(blob);
-        document.getElementById('run-frame').src = window.runUrl;
-    }
-
-    function getFileTypeLabel(n, d) { if(d) return "目录"; const e = n.split('.').pop().toLowerCase(); return {html:'HTML网页',js:'JS脚本',css:'样式表',md:'文档',txt:'文本',json:'配置'}[e] || (e.toUpperCase()+" 文件"); }
+    // --- 辅助工具 ---
+    function getFileTypeLabel(n, d) { if(d) return "目录"; const e = n.split('.').pop().toLowerCase(); return {html:'HTML',js:'JS',css:'CSS',md:'MD',txt:'TXT',json:'JSON',png:'IMG',jpg:'IMG'}[e] || e.toUpperCase(); }
     function updateBreadcrumb(p) {
         const b = document.getElementById('breadcrumb');
         const items = p.split('/').filter(x => x);
-        let h = `<span onclick="fetchRepoContents('')" class="cursor-pointer hover:text-blue-600 font-black"><i class="fas fa-home mr-1"></i> ROOT</span>`;
+        let h = `<span onclick="fetchRepoContents('')" class="cursor-pointer hover:text-blue-600 font-black px-1">ROOT</span>`;
         let c = "";
-        items.forEach(x => { c += (c ? '/' : '') + x; h += `<i class="fas fa-chevron-right mx-2 opacity-20 text-[7px]"></i><span onclick="fetchRepoContents('${c}')" class="cursor-pointer hover:text-blue-600 font-bold">${x}</span>`; });
+        items.forEach(x => { c += (c ? '/' : '') + x; h += `<i class="fas fa-chevron-right mx-2 opacity-20 text-[7px]"></i><span onclick="fetchRepoContents('${c}')" class="cursor-pointer hover:text-blue-600 font-bold px-1">${x}</span>`; });
         b.innerHTML = h;
     }
     function filterFiles() { const q = document.getElementById('searchInput').value.toLowerCase(); renderFiles(allFiles.filter(f => f.name.toLowerCase().includes(q))); }
     function closeIDE() { document.getElementById('ideModal').style.display = 'none'; document.body.style.overflow = 'auto'; }
-    function closeRun() { document.getElementById('runModal').style.display = 'none'; document.body.style.overflow = 'auto'; document.getElementById('run-frame').src = "about:blank"; }
-    function refreshRun() { document.getElementById('run-frame').contentWindow.location.reload(); }
     function showLoader(s) { document.getElementById('loader').classList.toggle('hidden', !s); if(s) document.getElementById('file-list').innerHTML=''; }
     function showContentLoader(s, t = "") { document.getElementById('content-loader').style.display = s ? 'flex' : 'none'; document.getElementById('cl-text').innerText = t; }
     function clearConfig() { localStorage.clear(); location.reload(); }
