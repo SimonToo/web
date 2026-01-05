@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub 仓库文件管理器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #24292e 0%, #40454a 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header h1 {
+            color: #24292e;
+            font-size: 2.2em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .github-logo {
+            width: 40px;
+            height: 40px;
+        }
+
+        .connection-panel {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 10px 15px;
+            border: 2px solid #e1e4e8;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #0366d6;
+            box-shadow: 0 0 0 3px rgba(3, 102, 214, 0.1);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #0366d6;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #0256c7;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(3, 102, 214, 0.3);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 20px;
+        }
+
+        .sidebar {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 15px;
+            padding: 20px;
+            height: fit-content;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .sidebar h3 {
+            color: #24292e;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        .path-breadcrumb {
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .breadcrumb-item {
+            color: #0366d6;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .breadcrumb-item:hover {
+            color: #0256c7;
+            text-decoration: underline;
+        }
+
+        .breadcrumb-separator {
+            color: #586069;
+        }
+
+        .file-explorer {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        .explorer-toolbar {
+            padding: 15px 20px;
+            background: #f6f8fa;
+            border-bottom: 1px solid #e1e4e8;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 8px 35px 8px 12px;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #586069;
+        }
+
+        .view-options {
+            display: flex;
+            gap: 5px;
+        }
+
+        .view-btn {
+            padding: 6px 10px;
+            background: white;
+            border: 1px solid #e1e4e8;
+            cursor: pointer;
+            transition: all 0.3s;
+            color: #586069;
+        }
+
+        .view-btn:first-child {
+            border-radius: 6px 0 0 6px;
+        }
+
+        .view-btn:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
+        .view-btn.active {
+            background: #0366d6;
+            color: white;
+            border-color: #0366d6;
+        }
+
+        .file-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            padding: 12px 20px;
+            border-bottom: 1px solid #eaecef;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .file-item:hover {
+            background: #f6f8fa;
+        }
+
+        .file-icon {
+            font-size: 20px;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .folder-icon {
+            color: #79b8ff;
+        }
+
+        .file-details {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-name {
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .file-size {
+            color: #6a737d;
+            font-size: 13px;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .file-item:hover .file-actions {
+            opacity: 1;
+        }
+
+        .action-btn {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+            border: 1px solid #e1e4e8;
+            background: white;
+            color: #24292e;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: #f6f8fa;
+            border-color: #d1d5da;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #586069;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid #e1e4e8;
+            border-radius: 50%;
+            border-top-color: #0366d6;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6a737d;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        .repo-info {
+            padding: 15px;
+            background: #f6f8fa;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .info-label {
+            color: #586069;
+        }
+
+        .info-value {
+            color: #24292e;
+            font-weight: 500;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .grid-item {
+            text-align: center;
+            padding: 20px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+
+        .grid-item:hover {
+            background: #f6f8fa;
+            border-color: #0366d6;
+            transform: translateY(-2px);
+        }
+
+        .grid-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .grid-name {
+            font-size: 13px;
+            color: #24292e;
+            word-break: break-all;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 80%;
+            max-height: 80%;
+            width: 800px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e1e4e8;
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .code-preview {
+            background: #f6f8fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #e1e4e8;
+        }
+
+        .error-message {
+            background: #ffeef0;
+            border: 1px solid #ffdce0;
+            color: #86181d;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: 2;
+            }
+            
+            .connection-panel {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .input-group {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <svg class="github-logo" viewBox="0 0 16 16" fill="#24292e">
+                    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                GitHub 仓库文件管理器
+            </h1>
+            
+            <div class="connection-panel">
+                <div class="input-group">
+                    <input type="text" id="username" class="input-field" placeholder="用户名或组织名" value="">
+                    <input type="text" id="repo" class="input-field" placeholder="仓库名" value="">
+                    <input type="text" id="token" class="input-field" placeholder="Token (可选，用于私有仓库)">
+                </div>
+                <button class="btn btn-primary" onclick="connectRepo()">
+                    <span>🔗</span> 连接仓库
+                </button>
+                <span id="connectionStatus" class="status disconnected">
+                    <span>●</span> 未连接
+                </span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>📊 仓库信息</h3>
+                <div id="repoInfo" class="repo-info">
+                    <div class="empty-state">
+                        <div class="empty-icon">📁</div>
+                        <p>请先连接到GitHub仓库</p>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 20px;">💡 使用说明</h3>
+                <div style="font-size: 13px; color: #586069; line-height: 1.6;">
+                    <p>1. 输入GitHub用户名和仓库名</p>
+                    <p>2. 公开仓库无需Token</p>
+                    <p>3. 私有仓库需要Personal Access Token</p>
+                    <p>4. 点击文件夹可以浏览</p>
+                    <p>5. 点击文件可以预览或下载</p>
+                </div>
+            </div>
+
+            <div>
+                <div id="pathBreadcrumb" class="path-breadcrumb" style="display: none;">
+                    <span class="breadcrumb-item" onclick="navigateTo('')">
+                        <strong>📁 根目录</strong>
+                    </span>
+                </div>
+
+                <div class="file-explorer">
+                    <div class="explorer-toolbar">
+                        <div class="search-box">
+                            <input type="text" id="searchInput" placeholder="搜索文件..." onkeyup="filterFiles()">
+                            <span class="search-icon">🔍</span>
+                        </div>
+                        <div class="view-options">
+                            <button class="view-btn active" onclick="setViewMode('list')">
+                                <span>☰</span>
+                            </button>
+                            <button class="view-btn" onclick="setViewMode('grid')">
+                                <span>⊞</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="fileContainer">
+                        <div class="empty-state">
+                            <div class="empty-icon">📂</div>
+                            <h3>欢迎使用GitHub文件管理器</h3>
+                            <p>请输入用户名和仓库名，然后点击"连接仓库"开始浏览</p>
+                            <p style="margin-top: 10px; font-size: 13px;">
+                                例如：用户名 "microsoft"，仓库名 "vscode"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="fileModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">文件预览</h2>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>加载中...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="downloadBtn" onclick="downloadCurrentFile()">下载文件</button>
+                <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentRepo = {
+            username: '',
+            repo: '',
+            token: '',
+            branch: 'main',
+            currentPath: '',
+            files: [],
+            repoData: null
+        };
+
+        let currentFileUrl = '';
+        let viewMode = 'list';
+
+        // 连接到仓库
+        async function connectRepo() {
+            const username = document.getElementById('username').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+            const token = document.getElementById('token').value.trim();
+
+            if (!username || !repo) {
+                showError('请输入用户名和仓库名');
+                return;
+            }
+
+            currentRepo.username = username;
+            currentRepo.repo = repo;
+            currentRepo.token = token;
+            currentRepo.currentPath = '';
+
+            showLoading();
+
+            try {
+                // 获取仓库信息
+                const repoInfo = await fetchGitHubAPI(`https://api.github.com/repos/${username}/${repo}`);
+                currentRepo.repoData = repoInfo;
+                currentRepo.branch = repoInfo.default_branch;
+                
+                // 更新连接状态
+                updateConnectionStatus(true);
+                
+                // 显示仓库信息
+                displayRepoInfo(repoInfo);
+                
+                // 加载根目录文件
+                await loadFiles('');
+                
+                // 显示路径导航
+                document.getElementById('pathBreadcrumb').style.display = 'flex';
+                
+            } catch (error) {
+                showError(`连接失败: ${error.message}`);
+                updateConnectionStatus(false);
+            }
+        }
+
+        // GitHub API 请求
+        async function fetchGitHubAPI(url) {
+            const headers = {
+                'Accept': 'application/vnd.github.v3+json'
+            };
+
+            if (currentRepo.token) {
+                headers['Authorization'] = `token ${currentRepo.token}`;
+            }
+
+            const response = await fetch(url, { headers });
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('仓库不存在或无权访问');
+                } else if (response.status === 403) {
+                    throw new Error('API 请求限制，请提供 Token');
+                } else {
+                    throw new Error(`请求失败: ${response.status}`);
+                }
+            }
+
+            return response.json();
+        }
+
+        // 加载文件列表
+        async function loadFiles(path = '') {
+            showLoading();
+            currentRepo.currentPath = path;
+
+            try {
+                const url = `https://api.github.com/repos/${currentRepo.username}/${currentRepo.repo}/contents/${path}`;
+                const files = await fetchGitHubAPI(url);
+                
+                // 排序：文件夹在前，文件在后
+                currentRepo.files = files.sort((a, b) => {
+                    if (a.type === 'dir' && b.type !== 'dir') return -1;
+                    if (a.type !== 'dir' && b.type === 'dir') return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+                displayFiles(currentRepo.files);
+                updateBreadcrumb();
+            } catch (error) {
+                showError(`加载文件失败: ${error.message}`);
+            }
+        }
+
+        // 显示文件列表
+        function displayFiles(files) {
+            const container = document.getElementById('fileContainer');
+            
+            if (files.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>此目录为空</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (viewMode === 'list') {
+                container.innerHTML = `<div class="file-list">${files.map(file => createFileItem(file)).join('')}</div>`;
+            } else {
+                container.innerHTML = `<div class="file-grid">${files.map(file => createGridItem(file)).join('')}</div>`;
+            }
+        }
+
+        // 创建列表项
+        function createFileItem(file) {
+            const isDir = file.type === 'dir';
+            const icon = isDir ? '📁' : getFileIcon(file.name);
+            const size = isDir ? '' : formatSize(file.size);
+            
+            return `
+                <div class="file-item" onclick="${isDir ? `navigateTo('${file.path}')` : `viewFile('${file.path}', '${file.name}')`}">
+                    <span class="file-icon ${isDir ? 'folder-icon' : ''}">${icon}</span>
+                    <div class="file-details">
+                        <span class="file-name">${file.name}</span>
+                        <span class="file-size">${size}</span>
+                    </div>
+                    <div class="file-actions">
+                        ${!isDir ? `
+                            <button class="action-btn" onclick="event.stopPropagation(); viewFile('${file.path}', '${file.name}')">预览</button>
+                            <button class="action-btn" onclick="event.stopPropagation(); downloadFile('${file.download_url}', '${file.name}')">下载</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // 创建网格项
+        function createGridItem(file) {
+            const isDir = file.type === 'dir';
+            const icon = isDir ? '📁' : getFileIcon(file.name);
+            
+            return `
+                <div class="grid-item" onclick="${isDir ? `navigateTo('${file.path}')` : `viewFile('${file.path}', '${file.name}')`}">
+                    <div class="grid-icon ${isDir ? 'folder-icon' : ''}">${icon}</div>
+                    <div class="grid-name">${file.name}</div>
+                </div>
+            `;
+        }
+
+        // 导航到文件夹
+        function navigateTo(path) {
+            loadFiles(path);
+        }
+
+        // 查看文件
+        async function viewFile(path, name) {
+            const modal = document.getElementById('fileModal');
+            const modalTitle = document.getElementById('modalTitle');
+            const modalBody = document.getElementById('modalBody');
+            
+            modal.classList.add('active');
+            modalTitle.textContent = name;
+            modalBody.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>加载中...</p>
+                </div>
+            `;
+
+            try {
+                const url = `https://api.github.com/repos/${currentRepo.username}/${currentRepo.repo}/contents/${path}`;
+                const fileData = await fetchGitHubAPI(url);
+                
+                currentFileUrl = fileData.download_url;
+
+                if (fileData.size > 1000000) { // 1MB
+                    modalBody.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📄</div>
+                            <h3>文件过大</h3>
+                            <p>文件大小: ${formatSize(fileData.size)}</p>
+                            <p>请直接下载查看</p>
+                        </div>
+                    `;
+                } else if (isTextFile(name) || isCodeFile(name)) {
+                    const content = atob(fileData.content);
+                    modalBody.innerHTML = `<pre class="code-preview">${escapeHtml(content)}</pre>`;
+                } else if (isImageFile(name)) {
+                    modalBody.innerHTML = `<img src="${fileData.download_url}" style="max-width: 100%; height: auto;">`;
+                } else {
+                    modalBody.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📎</div>
+                            <h3>${name}</h3>
+                            <p>文件大小: ${formatSize(fileData.size)}</p>
+                            <p>此文件类型不支持预览，请下载查看</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                modalBody.innerHTML = `
+                    <div class="error-message">
+                        加载失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 下载文件
+        function downloadFile(url, name) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // 下载当前文件
+        function downloadCurrentFile() {
+            if (currentFileUrl) {
+                const filename = document.getElementById('modalTitle').textContent;
+                downloadFile(currentFileUrl, filename);
+            }
+        }
+
+        // 更新面包屑导航
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('pathBreadcrumb');
+            const paths = currentRepo.currentPath.split('/').filter(p => p);
+            
+            let html = `
+                <span class="breadcrumb-item" onclick="navigateTo('')">
+                    <strong>📁 ${currentRepo.repo}</strong>
+                </span>
+            `;
+
+            let currentPath = '';
+            paths.forEach((path, index) => {
+                currentPath += (currentPath ? '/' : '') + path;
+                html += `
+                    <span class="breadcrumb-separator">/</span>
+                    <span class="breadcrumb-item" onclick="navigateTo('${currentPath}')">${path}</span>
+                `;
+            });
+
+            breadcrumb.innerHTML = html;
+        }
+
+        // 搜索/过滤文件
+        function filterFiles() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredFiles = currentRepo.files.filter(file => 
+                file.name.toLowerCase().includes(searchTerm)
+            );
+            displayFiles(filteredFiles);
+        }
+
+        // 切换视图模式
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.view-btn').classList.add('active');
+            displayFiles(currentRepo.files);
+        }
+
+        // 显示仓库信息
+        function displayRepoInfo(repo) {
+            const infoDiv = document.getElementById('repoInfo');
+            infoDiv.innerHTML = `
+                <div class="info-item">
+                    <span class="info-label">名称:</span>
+                    <span class="info-value">${repo.name}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">所有者:</span>
+                    <span class="info-value">${repo.owner.login}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">默认分支:</span>
+                    <span class="info-value">${repo.default_branch}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Stars:</span>
+                    <span class="info-value">⭐ ${repo.stargazers_count}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Forks:</span>
+                    <span class="info-value">🍴 ${repo.forks_count}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">语言:</span>
+                    <span class="info-value">${repo.language || 'N/A'}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">创建时间:</span>
+                    <span class="info-value">${new Date(repo.created_at).toLocaleDateString('zh-CN')}</span>
+                </div>
+            `;
+        }
+
+        // 更新连接状态
+        function updateConnectionStatus(connected) {
+            const status = document.getElementById('connectionStatus');
+            if (connected) {
+                status.className = 'status connected';
+                status.innerHTML = '<span>●</span> 已连接';
+            } else {
+                status.className = 'status disconnected';
+                status.innerHTML = '<span>●</span> 未连接';
+            }
+        }
+
+        // 显示加载中
+        function showLoading() {
+            document.getElementById('fileContainer').innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>加载中...</p>
+                </div>
+            `;
+        }
+
+        // 显示错误
+        function showError(message) {
+            alert(message);
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            document.getElementById('fileModal').classList.remove('active');
+            currentFileUrl = '';
+        }
+
+        // 获取文件图标
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const icons = {
+                'md': '📝', 'txt': '📃', 'json': '📦', 'js': '🟨', 'ts': '🔷',
+                'html': '🌐', 'css': '🎨', 'py': '🐍', 'java': '☕', 'cpp': '⚙️',
+                'c': '⚙️', 'h': '📋', 'go': '🐹', 'rs': '🦀', 'php': '🐘',
+                'rb': '💎', 'swift': '🦉', 'kt': '🟣', 'vue': '💚', 'jsx': '⚛️',
+                'tsx': '⚛️', 'yml': '⚙️', 'yaml': '⚙️', 'xml': '📋', 'sql': '🗃️',
+                'sh': '🖥️', 'bat': '🖥️', 'exe': '⚡', 'dll': '📚', 'zip': '🗜️',
+                'rar': '🗜️', 'tar': '🗜️', 'gz': '🗜️', 'jpg': '🖼️', 'jpeg': '🖼️',
+                'png': '🖼️', 'gif': '🖼️', 'svg': '🎨', 'mp3': '🎵', 'mp4': '🎬',
+                'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xls': '📗', 'xlsx': '📗'
+            };
+            return icons[ext] || '📄';
+        }
+
+        // 判断是否为文本文件
+        function isTextFile(filename) {
+            const textExts = ['txt', 'md', 'log', 'csv', 'ini', 'conf'];
+            const ext = filename.split('.').pop().toLowerCase();
+            return textExts.includes(ext);
+        }
+
+        // 判断是否为代码文件
+        function isCodeFile(filename) {
+            const codeExts = ['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'h', 'cs', 
+                             'php', 'rb', 'go', 'rs', 'swift', 'kt', 'html', 'css', 'scss', 
+                             'sass', 'vue', 'json', 'xml', 'yml', 'yaml', 'sh', 'bat'];
+            const ext = filename.split('.').pop().toLowerCase();
+            return codeExts.includes(ext);
+        }
+
+        // 判断是否为图片文件
+        function isImageFile(filename) {
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'ico'];
+            const ext = filename.split('.').pop().toLowerCase();
+            return imageExts.includes(ext);
+        }
+
+        // 格式化文件大小
+        function formatSize(bytes) {
+            if (!bytes) return '';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // HTML转义
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 点击模态框外部关闭
+        document.getElementById('fileModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // 示例：自动填充一个流行的开源项目
+        window.onload = function() {
+            // 可以设置默认值方便测试
+            document.getElementById('username').placeholder = '例如: facebook';
+            document.getElementById('repo').placeholder = '例如: react';
+        };
+    </script>
+</body>
+</html>
