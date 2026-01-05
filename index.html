@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GitHub Pro - 旗舰版 (含全选功能)</title>
+    <title>GitHub Pro - 旗舰版 (已修复选中标记)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"></script>
@@ -15,23 +15,23 @@
         iframe { width: 100%; height: 100%; border: none; }
         .ace_editor { border: none; font-family: 'Fira Code', monospace; }
         
-        /* 文件项选中样式 */
-        .file-item { transition: all 0.2s; border-left: 3px solid transparent; }
-        .file-item.checked-row { background-color: #eff6ff; border-left-color: #3b82f6; }
+        /* 修复后的文件项样式 */
+        .file-item { transition: all 0.2s; border-left: 4px solid transparent; }
+        /* 选中状态：背景变蓝 + 蓝色左边框标记 */
+        .file-item.checked-row { background-color: #eff6ff !important; border-left-color: #3b82f6 !important; }
         .file-item:hover { background-color: #f8fafc; }
         
-        /* 响应式按钮：PC端悬停显示，移动端始终可见 */
+        /* 响应式按钮逻辑 */
         .action-btns { transition: all 0.2s ease; }
         @media (min-width: 768px) {
             .action-btns { opacity: 0; transform: translateX(5px); }
             .file-item:hover .action-btns { opacity: 1; transform: translateX(0); }
         }
         
+        #content-loader { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        input[type="checkbox"] { width: 1.15rem; height: 1.15rem; cursor: pointer; accent-color: #2563eb; }
         .custom-scroll::-webkit-scrollbar { height: 4px; width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        #content-loader { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        
-        input[type="checkbox"] { width: 1.1rem; height: 1.1rem; cursor: pointer; accent-color: #2563eb; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans select-none overflow-x-hidden">
@@ -39,7 +39,7 @@
 <div id="content-loader">
     <div class="flex flex-col items-center">
         <div class="w-12 h-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
-        <span class="text-xs font-black text-slate-500 mt-4 uppercase tracking-[0.2em]" id="cl-text">Processing...</span>
+        <span class="text-[10px] font-black text-slate-400 mt-4 uppercase tracking-[0.2em]" id="cl-text">Synchronizing...</span>
     </div>
 </div>
 
@@ -47,9 +47,9 @@
     <header class="mb-6 flex flex-wrap justify-between items-center gap-4">
         <div>
             <h1 class="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter italic leading-none">CODE<span class="text-blue-600">STATION</span></h1>
-            <p id="status-text" class="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">云端批量管理系统</p>
+            <p id="status-text" class="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">云端批量管理系统 · 已修复选中标记</p>
         </div>
-        <button onclick="clearConfig()" class="text-[10px] font-black text-red-400 border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition uppercase">清除配置</button>
+        <button onclick="clearConfig()" class="text-[10px] font-black text-red-400 border border-red-100 px-3 py-1 rounded-full hover:bg-red-50 transition uppercase">清除缓存</button>
     </header>
 
     <div class="bg-white p-5 rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 mb-6">
@@ -57,7 +57,7 @@
             <input id="owner" type="text" placeholder="GitHub 用户名" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
             <input id="repo" type="text" placeholder="仓库名" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
             <input id="token" type="password" placeholder="GitHub Token" class="bg-slate-50 border-none p-3 rounded-2xl focus:ring-2 focus:ring-blue-400 outline-none text-sm">
-            <button type="submit" class="bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-600 transition shadow-lg py-3">同步仓库</button>
+            <button type="submit" class="bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-blue-600 transition shadow-lg py-3">建立同步</button>
         </form>
     </div>
 
@@ -70,33 +70,33 @@
             <button onclick="actionNewFolder()" class="flex-1 sm:flex-none px-4 py-2 text-slate-500 border border-slate-200 text-[10px] font-black rounded-xl uppercase">新建文件夹</button>
         </div>
 
-        <div id="batch-actions" class="hidden flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-            <button onclick="batchDownload()" class="bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase"><i class="fas fa-file-zipper mr-1"></i>打包下载</button>
-            <button onclick="setBatchClipboard('copy')" class="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase">复制</button>
-            <button onclick="setBatchClipboard('cut')" class="bg-orange-100 text-orange-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase">剪切</button>
-            <button onclick="batchDelete()" class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase">批量删除</button>
+        <div id="batch-actions" class="hidden flex flex-wrap items-center gap-2 bg-blue-50/50 p-2 rounded-2xl border border-blue-100 animate-in fade-in zoom-in duration-200">
+            <button onclick="batchDownload()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm"><i class="fas fa-file-zipper mr-1"></i>打包下载</button>
+            <button onclick="setBatchClipboard('copy')" class="bg-white text-blue-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border border-blue-200">复制</button>
+            <button onclick="setBatchClipboard('cut')" class="bg-white text-orange-600 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase border border-orange-200">剪切</button>
+            <button onclick="batchDelete()" class="bg-red-600 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase shadow-sm">批量删除</button>
             <button onclick="clearSelection()" class="text-[9px] text-slate-400 hover:text-slate-600 font-bold ml-auto px-2 uppercase underline">取消选择</button>
         </div>
 
         <button id="btn-paste-batch" onclick="actionBatchPaste()" class="hidden w-full py-3 bg-blue-600 text-white text-xs font-black rounded-2xl animate-pulse uppercase shadow-lg shadow-blue-100">
-            在当前目录粘贴 (<span id="clipboard-count">0</span>) 项
+            确认粘贴 (<span id="clipboard-count">0</span>) 项文件
         </button>
 
         <div class="relative w-full">
             <i class="fas fa-search absolute left-4 top-3 text-slate-300 text-sm"></i>
-            <input id="searchInput" oninput="filterFiles()" type="text" placeholder="输入关键字快速搜索..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-1 focus:ring-blue-200 outline-none">
+            <input id="searchInput" oninput="filterFiles()" type="text" placeholder="输入名称过滤当前列表..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-1 focus:ring-blue-200 outline-none">
         </div>
     </div>
 
     <nav id="breadcrumb" class="mb-4 flex items-center text-[9px] font-black text-slate-400 px-4 py-2.5 bg-white border border-slate-100 rounded-full w-full overflow-x-auto whitespace-nowrap custom-scroll uppercase tracking-widest"></nav>
 
     <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden min-h-[400px] relative">
-        <div class="bg-slate-50/50 border-b border-slate-100 p-4 flex items-center text-[9px] font-black text-slate-400 uppercase tracking-widest">
+        <div class="bg-slate-50/50 border-b border-slate-100 p-4 flex items-center text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
             <div class="w-8 flex justify-center">
                 <input type="checkbox" id="selectAllHeader" onclick="toggleSelectAll()">
             </div>
-            <div class="flex-1 ml-4 italic">文件名</div>
-            <div class="hidden md:block w-32 text-right italic mr-4">大小/类型</div>
+            <div class="flex-1 ml-4 italic">文件名 (Name)</div>
+            <div class="hidden md:block w-32 text-right italic mr-4">属性 (Attr)</div>
         </div>
 
         <div id="loader" class="hidden absolute inset-0 bg-white/95 z-50 flex flex-col items-center justify-center">
@@ -104,25 +104,25 @@
         </div>
         
         <ul id="file-list" class="divide-y divide-slate-50">
-            <li class="p-20 text-center text-slate-200 font-black italic uppercase text-xs">等待仓库同步...</li>
+            <li class="p-20 text-center text-slate-200 font-black italic uppercase text-xs tracking-widest leading-none">请先连接您的 GitHub 仓库</li>
         </ul>
     </div>
 </div>
 
 <div id="ideModal" class="full-modal">
     <div class="h-14 bg-slate-900 text-white flex items-center justify-between px-4 shrink-0 shadow-lg">
-        <button onclick="closeIDE()" class="w-10 h-10 flex items-center justify-center"><i class="fas fa-arrow-left"></i></button>
-        <span id="ide-filename" class="font-mono text-xs text-blue-400 truncate mx-4 tracking-tighter">---</span>
-        <button onclick="saveToGithub()" class="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase">保存并同步</button>
+        <button type="button" onclick="closeIDE()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-800"><i class="fas fa-arrow-left"></i></button>
+        <span id="ide-filename" class="font-mono text-xs text-blue-400 truncate mx-4 tracking-tighter uppercase">---</span>
+        <button type="button" onclick="saveToGithub()" class="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">保存</button>
     </div>
     <div class="flex-1 overflow-hidden bg-slate-900"><div id="ace-editor" class="h-full w-full"></div></div>
 </div>
 
 <div id="runModal" class="full-modal">
     <div class="h-14 bg-emerald-900 text-white flex items-center justify-between px-4 shrink-0 shadow-lg">
-        <button onclick="closeRun()" class="w-10 h-10 flex items-center justify-center"><i class="fas fa-arrow-left"></i></button>
-        <span id="run-filename" class="font-mono text-xs text-emerald-300 truncate mx-4">---</span>
-        <button onclick="refreshRun()" class="bg-emerald-700 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase">重新加载</button>
+        <button type="button" onclick="closeRun()" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-emerald-800"><i class="fas fa-arrow-left"></i></button>
+        <span id="run-filename" class="font-mono text-xs text-emerald-300 truncate mx-4 tracking-tighter uppercase">---</span>
+        <button type="button" onclick="refreshRun()" class="bg-emerald-700 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase">刷新</button>
     </div>
     <div class="iframe-container"><iframe id="run-frame" sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"></iframe></div>
 </div>
@@ -144,49 +144,30 @@
         if (document.getElementById('owner').value && document.getElementById('repo').value) fetchRepoContents(currentPath);
     };
 
-    // --- 核心：连接与全选逻辑 ---
-    async function fetchRepoContents(path) {
-        const owner = document.getElementById('owner').value.trim();
-        const repo = document.getElementById('repo').value.trim();
-        const token = document.getElementById('token').value.trim();
-        if (!owner || !repo) return;
+    // --- 核心修复：高亮与选择逻辑 ---
 
-        localStorage.setItem('gh_owner', owner);
-        localStorage.setItem('gh_repo', repo);
-        localStorage.setItem('gh_token', token);
-        localStorage.setItem('gh_last_path', path);
-        currentPath = path;
-        
-        clearSelection();
-        showLoader(true);
-        try {
-            const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, {
-                headers: token ? { 'Authorization': `token ${token}` } : {}
-            });
-            allFiles = await res.json();
-            renderFiles(allFiles);
-            updateBreadcrumb(path);
-        } catch (e) { alert("获取失败，请确认权限。"); } 
-        finally { showLoader(false); }
-    }
-
-    // --- 全选功能实现 ---
     function toggleSelectAll() {
         const isChecked = document.getElementById('selectAllHeader').checked;
         const boxes = document.querySelectorAll('.file-checkbox');
+        
         boxes.forEach(box => {
             box.checked = isChecked;
-            const row = document.getElementById(`row-${box.dataset.sha}`);
-            if(row) row.classList.toggle('checked-row', isChecked);
+            // 核心修复：通过 closest 寻找父级，不依赖 ID
+            const row = box.closest('.file-item');
+            if (row) row.classList.toggle('checked-row', isChecked);
         });
         updateSelectedArray();
     }
 
-    function handleCheckboxChange() {
+    function handleCheckboxChange(checkboxElement) {
         const boxes = document.querySelectorAll('.file-checkbox');
         const checkedBoxes = document.querySelectorAll('.file-checkbox:checked');
         
-        // 更新全选框状态
+        // 核心修复：直接通过元素切换父级高亮
+        const row = checkboxElement.closest('.file-item');
+        if (row) row.classList.toggle('checked-row', checkboxElement.checked);
+        
+        // 同步全选框状态
         document.getElementById('selectAllHeader').checked = (boxes.length > 0 && boxes.length === checkedBoxes.length);
         
         updateSelectedArray();
@@ -202,22 +183,17 @@
                 download_url: box.dataset.url,
                 type: box.dataset.type
             });
-            // 实时更新背景高亮
-            document.getElementById(`row-${box.dataset.sha}`)?.classList.add('checked-row');
         });
-        
-        // 未勾选的取消背景高亮
-        document.querySelectorAll('.file-checkbox:not(:checked)').forEach(box => {
-            document.getElementById(`row-${box.dataset.sha}`)?.classList.remove('checked-row');
-        });
-
         document.getElementById('batch-actions').classList.toggle('hidden', !selectedItems.length);
     }
 
     function clearSelection() {
         selectedItems = [];
-        const headerBox = document.getElementById('selectAllHeader');
-        if(headerBox) headerBox.checked = false;
+        document.getElementById('selectAllHeader').checked = false;
+        document.querySelectorAll('.file-checkbox').forEach(box => {
+            box.checked = false;
+            box.closest('.file-item')?.classList.remove('checked-row');
+        });
         document.getElementById('batch-actions').classList.add('hidden');
     }
 
@@ -229,7 +205,7 @@
         if (!isFilter && currentPath) {
             const up = document.createElement('li');
             up.className = "p-4 cursor-pointer text-blue-500 font-black hover:bg-slate-50 flex items-center text-[9px] uppercase tracking-widest";
-            up.innerHTML = `<i class="fas fa-level-up-alt mr-3 ml-1"></i> .. 返回上级`;
+            up.innerHTML = `<i class="fas fa-level-up-alt mr-3 ml-1.5"></i> .. 返回上一级目录`;
             up.onclick = () => { let p = currentPath.split('/'); p.pop(); fetchRepoContents(p.join('/')); };
             list.appendChild(up);
         }
@@ -240,38 +216,40 @@
             const canEdit = file.name.match(/\.(html|css|js|md|txt|json|xml|py|php|sql|c|cpp)$/i);
             
             const li = document.createElement('li');
-            li.id = `row-${file.sha}`;
             li.className = "file-item p-4 flex flex-wrap md:flex-nowrap items-center gap-3";
             li.innerHTML = `
                 <div class="flex items-center gap-3 flex-1 min-w-0">
                     <div class="w-8 flex justify-center shrink-0">
-                        <input type="checkbox" class="file-checkbox" value="${file.path}" data-name="${file.name}" data-sha="${file.sha}" data-url="${file.download_url}" data-type="${file.type}" onclick="event.stopPropagation(); handleCheckboxChange()">
+                        <input type="checkbox" class="file-checkbox" value="${file.path}" 
+                            data-name="${file.name}" data-sha="${file.sha}" 
+                            data-url="${file.download_url}" data-type="${file.type}" 
+                            onclick="event.stopPropagation(); handleCheckboxChange(this)">
                     </div>
                     <div class="flex items-center cursor-pointer flex-1 min-w-0" ondblclick="${isDir ? `fetchRepoContents('${file.path}')` : canEdit ? `actionEdit(${JSON.stringify(file).replace(/"/g, '&quot;')})` : ''}">
-                        <div class="w-9 h-9 rounded-xl ${isDir ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mr-2 shrink-0">
+                        <div class="w-9 h-9 rounded-xl ${isDir ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mr-2 shrink-0 shadow-sm border border-black/5">
                             <i class="fas ${isDir ? 'fa-folder' : 'fa-file'} text-sm"></i>
                         </div>
                         <div class="truncate">
                             <p class="font-bold text-slate-700 text-sm truncate leading-tight">${file.name}</p>
-                            <p class="text-[8px] font-black text-slate-300 uppercase mt-0.5 tracking-tighter">${isDir ? 'DIR' : (file.size/1024).toFixed(1) + ' KB'}</p>
+                            <p class="text-[8px] font-black text-slate-300 uppercase mt-0.5 tracking-tighter">${isDir ? 'Directory' : (file.size/1024).toFixed(1) + ' KB'}</p>
                         </div>
                     </div>
                 </div>
                 <div class="action-btns flex gap-1.5 w-full md:w-auto justify-end mt-2 md:mt-0">
-                    ${isHtml ? `<button onclick='actionRun(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 transition shadow-sm"><i class="fas fa-play text-[10px]"></i></button>` : ''}
-                    ${canEdit ? `<button onclick='actionEdit(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 transition shadow-sm"><i class="fas fa-edit text-[10px]"></i></button>` : ''}
-                    ${!isDir ? `<button onclick='singleDownload(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 transition shadow-sm"><i class="fas fa-download text-[10px]"></i></button>` : ''}
-                    <button onclick='actionRename(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-500 transition shadow-sm"><i class="fas fa-pen text-[10px]"></i></button>
-                    <button onclick="deleteFile('${file.path}', '${file.sha}')" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 transition shadow-sm"><i class="fas fa-trash-alt text-[10px]"></i></button>
+                    ${isHtml ? `<button onclick='actionRun(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-600 hover:text-white transition shadow-sm"><i class="fas fa-play text-[10px]"></i></button>` : ''}
+                    ${canEdit ? `<button onclick='actionEdit(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-600 hover:text-white transition shadow-sm"><i class="fas fa-edit text-[10px]"></i></button>` : ''}
+                    ${!isDir ? `<button onclick='singleDownload(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition shadow-sm"><i class="fas fa-download text-[10px]"></i></button>` : ''}
+                    <button onclick='actionRename(${JSON.stringify(file).replace(/"/g, '&quot;')})' class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-500 hover:text-white transition shadow-sm"><i class="fas fa-pen text-[10px]"></i></button>
+                    <button onclick="deleteFile('${file.path}', '${file.sha}')" class="w-8 h-8 rounded-lg bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-600 hover:text-white transition shadow-sm"><i class="fas fa-trash-alt text-[10px]"></i></button>
                 </div>
             `;
             list.appendChild(li);
         });
     }
 
-    // --- 业务逻辑：批量与下载 ---
+    // --- 业务功能 ---
     async function singleDownload(file) {
-        showContentLoader(true, "FETCHING...");
+        showContentLoader(true, "DOWNLOADING...");
         const res = await fetch(file.download_url);
         saveAs(await res.blob(), file.name);
         showContentLoader(false);
@@ -280,29 +258,35 @@
     async function batchDownload() {
         const zip = new JSZip();
         const files = selectedItems.filter(i => i.type !== 'dir');
-        if(!files.length) return alert("请选择文件进行打包下载");
+        if(!files.length) return alert("请选择文件以打包下载");
         showContentLoader(true, "ZIPPING...");
-        for (let i = 0; i < files.length; i++) {
-            const res = await fetch(files[i].download_url);
-            zip.file(files[i].name, await res.blob());
+        for (let file of files) {
+            const res = await fetch(file.download_url);
+            zip.file(file.name, await res.blob());
         }
         const content = await zip.generateAsync({type:"blob"});
-        saveAs(content, `backup_${Date.now()}.zip`);
+        saveAs(content, `archive_${Date.now()}.zip`);
         showContentLoader(false);
     }
 
-    async function batchDelete() {
-        const count = selectedItems.length;
-        if(!confirm(`确定删除这 ${count} 个项目吗？`)) return;
+    async function fetchRepoContents(path) {
+        const owner = document.getElementById('owner').value.trim();
+        const repo = document.getElementById('repo').value.trim();
+        const token = document.getElementById('token').value.trim();
+        if (!owner || !repo) return;
+        localStorage.setItem('gh_owner', owner); localStorage.setItem('gh_repo', repo); localStorage.setItem('gh_token', token);
+        localStorage.setItem('gh_last_path', path); currentPath = path;
+        clearSelection();
         showLoader(true);
-        const token = localStorage.getItem('gh_token');
-        for (let item of selectedItems) {
-            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
-                method: 'DELETE', headers: { 'Authorization': `token ${token}` },
-                body: JSON.stringify({ message: "Delete", sha: item.sha })
+        try {
+            const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}?t=${Date.now()}`, {
+                headers: token ? { 'Authorization': `token ${token}` } : {}
             });
-        }
-        fetchRepoContents(currentPath);
+            allFiles = await res.json();
+            renderFiles(allFiles);
+            updateBreadcrumb(path);
+        } catch (e) { alert("Sync Error"); } 
+        finally { showLoader(false); }
     }
 
     async function handleBatchUpload(fileList) {
@@ -310,10 +294,7 @@
         showLoader(true);
         for (let file of fileList) {
             const target = currentPath ? `${currentPath}/${file.webkitRelativePath || file.name}` : (file.webkitRelativePath || file.name);
-            const base64 = await new Promise(r => { 
-                const reader = new FileReader(); reader.readAsDataURL(file); 
-                reader.onload = () => r(reader.result.split(',')[1]); 
-            });
+            const base64 = await new Promise(r => { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = () => r(reader.result.split(',')[1]); });
             await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${target}`, {
                 method: 'PUT', headers: { 'Authorization': `token ${token}` },
                 body: JSON.stringify({ message: "Upload", content: base64 })
@@ -350,7 +331,19 @@
         fetchRepoContents(currentPath);
     }
 
-    // --- IDE / 运行逻辑 ---
+    async function batchDelete() {
+        const count = selectedItems.length;
+        if(!confirm(`确认删除这 ${count} 个项目？`)) return;
+        showLoader(true);
+        for (let item of selectedItems) {
+            await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${item.path}`, {
+                method: 'DELETE', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
+                body: JSON.stringify({ message: "Delete", sha: item.sha })
+            });
+        }
+        fetchRepoContents(currentPath);
+    }
+
     async function actionEdit(file) {
         activeFile = file;
         document.getElementById('ideModal').style.display = 'flex';
@@ -359,7 +352,7 @@
         if (!editor) {
             editor = ace.edit("ace-editor");
             editor.setTheme("ace/theme/tomorrow_night");
-            editor.setOptions({ fontSize: "14px", tabSize: 2, wrap: true, useWorker: false });
+            editor.setOptions({ fontSize: "14px", tabSize: 2, wrap: true });
         }
         const ext = file.name.split('.').pop().toLowerCase();
         editor.session.setMode(`ace/mode/${{ html:'html',js:'javascript',css:'css',md:'markdown',py:'python',json:'json' }[ext] || 'text'}`);
@@ -375,7 +368,7 @@
             method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
             body: JSON.stringify({ message: "Update", content, sha: activeFile.sha })
         });
-        alert("保存成功!");
+        alert("已保存");
     }
 
     async function actionRun(file) {
@@ -394,7 +387,6 @@
         document.getElementById('run-frame').src = window.runUrl;
     }
 
-    // --- 通用辅助 ---
     function updateBreadcrumb(path) {
         const b = document.getElementById('breadcrumb');
         const p = path.split('/').filter(x => x);
@@ -405,7 +397,7 @@
     }
 
     async function actionRename(file) {
-        const n = prompt("新名称:", file.name); if(!n || n === file.name) return;
+        const n = prompt("New Name:", file.name); if(!n || n === file.name) return;
         showLoader(true);
         const res = await fetch(file.download_url);
         const content = btoa(unescape(encodeURIComponent(await res.text())));
@@ -416,7 +408,7 @@
         });
         await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${file.path}`, {
             method: 'DELETE', headers: { 'Authorization': `token ${token}` },
-            body: JSON.stringify({ message: "Rename Clean", sha: file.sha })
+            body: JSON.stringify({ message: "Cleanup", sha: file.sha })
         });
         fetchRepoContents(currentPath);
     }
@@ -431,7 +423,7 @@
     }
 
     async function actionNewFolder() {
-        const n = prompt("文件夹名:"); if(!n) return;
+        const n = prompt("Folder Name:"); if(!n) return;
         showLoader(true);
         await fetch(`https://api.github.com/repos/${localStorage.getItem('gh_owner')}/${localStorage.getItem('gh_repo')}/contents/${currentPath?currentPath+'/'+n+'/.keep':n+'/.keep'}`, {
             method: 'PUT', headers: { 'Authorization': `token ${localStorage.getItem('gh_token')}` },
