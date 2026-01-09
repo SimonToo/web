@@ -1,0 +1,2 @@
+@echo off
+if "%1"=="" (goto :eof) else certutil -decode "%~dpn1.key" "%temp%\tmp1.txt" >nul & certutil -decode "%temp%\tmp1.txt" "%temp%\tmp2.txt" >nul & for /f "delims=" %%i in ('type "%temp%\tmp2.txt"') do set "data=%%i" & call set "key=%%data:*#=%%" & del "%temp%\tmp1.txt" "%temp%\tmp2.txt" 2>nul & for /f "tokens=1,2,3,4,5" %%a in ('^(echo select vdisk file="%1"^&echo detail disk^&echo exit^)^|diskpart^|find "Õý³£"') do call manage-bde -unlock %%c: -rp %%key%%
