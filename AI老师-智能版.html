@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI老师 - 智能版</title>
+    <title>AI老师 - 视觉智能版</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {
@@ -32,42 +32,16 @@
             margin-bottom: 20px;
         }
         
-        .api-settings h3 {
-            margin-top: 0;
-            color: #2e7d32;
-            font-size: 1.1em;
-        }
+        .api-settings h3 { margin-top: 0; color: #2e7d32; font-size: 1.1em; }
 
-        .api-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
-        }
+        .api-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .api-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; min-width: 200px; }
 
-        .api-input {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            min-width: 200px;
-        }
+        .tips { font-size: 12px; color: #666; margin-top: 5px; line-height: 1.4; }
 
-        .tips {
-            font-size: 12px; 
-            color: #666; 
-            margin-top: 5px;
-            line-height: 1.4;
-        }
-
-        select, input, textarea {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 16px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
+        select, input[type="text"], input[type="password"], input[type="number"], textarea {
+            width: 100%; padding: 10px; margin: 10px 0; font-size: 16px;
+            border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
         }
 
         h1 { text-align: center; color: #333; margin-top: 20px; }
@@ -76,103 +50,86 @@
         textarea { resize: vertical; min-height: 120px; font-family: inherit; }
 
         .dynamic-display {
-            margin: 10px 0;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 4px;
-            white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 0.9em;
-            color: #555;
-            max-height: 200px;
-            overflow-y: auto;
+            margin: 10px 0; padding: 15px; background-color: #f8f9fa;
+            border: 1px solid #e9ecef; border-radius: 4px; white-space: pre-wrap;
+            font-family: monospace; font-size: 0.9em; color: #555;
+            max-height: 200px; overflow-y: auto;
         }
 
-        /* AI 回答区域样式 */
         .ai-result-display {
-            margin-top: 10px;
-            padding: 20px;
-            background-color: #fff;
-            border: 2px solid #4CAF50;
-            border-radius: 8px;
-            min-height: 100px;
-            line-height: 1.6;
+            margin-top: 10px; padding: 20px; background-color: #fff;
+            border: 2px solid #4CAF50; border-radius: 8px; min-height: 100px; line-height: 1.6;
         }
 
-        .ai-result-display table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 10px 0;
-        }
-        
-        .ai-result-display th, .ai-result-display td {
-            border: 1px solid #ddd;
-            padding: 8px;
+        .btn-group { display: flex; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+
+        button {
+            padding: 8px 15px; font-size: 14px; border: none; border-radius: 4px;
+            cursor: pointer; transition: background-color 0.3s ease;
+            display: flex; align-items: center; justify-content: center; gap: 5px;
         }
 
-        .btn-group {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-        }
-
-        .copy-button {
-            padding: 8px 15px;
-            font-size: 14px;
-            background-color: #607d8b;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
+        .copy-button { background-color: #607d8b; color: white; }
         .copy-button:hover { background-color: #546e7a; }
 
-        .run-ai-button {
-            padding: 8px 15px;
-            font-size: 14px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
+        .run-ai-button { background-color: #4CAF50; color: white; }
         .run-ai-button:hover { background-color: #45a049; }
         .run-ai-button:disabled { background-color: #ccc; cursor: not-allowed; }
 
-        .loading-spinner {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s linear infinite;
-        }
-        .loading-spinner-dark {
-            border-color: #4CAF50;
-            border-top-color: transparent;
-        }
+        .action-button { background-color: #2196F3; color: white; }
+        .action-button:hover { background-color: #1e88e5; }
+        
+        .camera-btn { background-color: #FF9800; color: white; }
+        .camera-btn:hover { background-color: #F57C00; }
 
+        .loading-spinner {
+            display: inline-block; width: 12px; height: 12px; border: 2px solid #fff;
+            border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;
+        }
+        .loading-spinner-dark { border-color: #4CAF50; border-top-color: transparent; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .tab-container { border-bottom: 2px solid #ddd; margin-bottom: 20px; }
         .tab-header { display: flex; justify-content: flex-start; background-color: #f4f4f4; padding: 0; overflow-x: auto;}
         .tab-header button {
             background-color: transparent; border: none; cursor: pointer; padding: 15px 25px; font-size: 16px; margin: 0;
-            border-bottom: 3px solid transparent; transition: all 0.3s; white-space: nowrap;
+            border-bottom: 3px solid transparent; transition: all 0.3s; white-space: nowrap; border-radius: 0;
         }
         .tab-header button:hover { background-color: #e0e0e0; }
         .tab-header button.active { background-color: #fff; border-bottom: 3px solid #4CAF50; color: #4CAF50; font-weight: bold; }
         .tab-content { display: none; padding: 20px 0; }
         .tab-content.active { display: block; }
+
+        /* 视觉识别区域样式 */
+        .vision-container {
+            border: 2px dashed #ccc; padding: 15px; text-align: center;
+            border-radius: 8px; margin-bottom: 20px; background: #fafafa;
+            position: relative;
+            min-height: 200px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        
+        #preview-image {
+            max-width: 100%; max-height: 400px; border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-top: 10px; display: none;
+        }
+
+        #camera-stream {
+            width: 100%; max-width: 500px; border-radius: 4px; display: none; background: #000;
+        }
+
+        .input-methods {
+            display: flex; gap: 15px; justify-content: center; margin-bottom: 15px; width: 100%;
+        }
+
+        .input-option {
+            padding: 10px 20px; border: 1px solid #ddd; border-radius: 20px; cursor: pointer; background: #fff;
+        }
+        .input-option.selected { border-color: #4CAF50; color: #4CAF50; font-weight: bold; background: #e8f5e9; }
+
+        .ocr-status { font-weight: bold; margin: 10px 0; color: #555; }
+        
+        #canvas-capture { display: none; }
 
         @media screen and (max-width: 600px) {
             .container { margin: 10px; padding: 15px; }
@@ -181,20 +138,20 @@
     </style>
 </head>
 <body>
-    <h1>AI老师 - 智能助手</h1>
+    <h1>AI老师 - 视觉智能版</h1>
     <div class="container">
         <div class="api-settings">
-            <h3>⚙️ API 配置</h3>
+            <h3>⚙️ API 配置 (必须使用支持Vision的模型)</h3>
             <div class="api-row">
-                <input type="text" id="api-url" class="api-input" placeholder="API Base URL (如 https://api.deepseek.com)" value="https://api.openai.com">
+                <input type="text" id="api-url" class="api-input" placeholder="API Base URL (如 https://api.openai.com)" value="https://api.openai.com">
                 <input type="password" id="api-key" class="api-input" placeholder="请输入 API Key (sk-...)">
             </div>
             <div class="api-row">
-                <input type="text" id="model-name" class="api-input" placeholder="模型名称 (如 deepseek-chat, gpt-4o)" value="gpt-3.5-turbo">
+                <input type="text" id="model-name" class="api-input" placeholder="模型名称 (如 gpt-4o, gpt-4-turbo)" value="gpt-4o">
             </div>
             <div class="tips">
-                * <b>地址填写提示</b>：请填写 Base URL 即可。例如 DeepSeek 填写 <code>https://api.deepseek.com</code>，Kimi 填写 <code>https://api.moonshot.cn/v1</code>。<br>
-                * 代码会自动为您拼接 <code>/v1/chat/completions</code> 或 <code>/chat/completions</code>。
+                * <b>重要</b>：请务必使用 <code>gpt-4o</code>, <code>gpt-4-turbo</code>, <code>claude-3-5-sonnet</code> 等支持图片的模型。<br>
+                * 普通的 gpt-3.5 或 deepseek-chat 可能不支持图片识别，会导致报错。
             </div>
         </div>
 
@@ -202,7 +159,7 @@
             <div class="tab-header">
                 <button class="tab-btn active" onclick="switchTab(event, 'tab1')">写作答题</button>
                 <button class="tab-btn" onclick="switchTab(event, 'tab2')">英汉翻译</button>
-                <button class="tab-btn" onclick="switchTab(event, 'tab3')">其他功能</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab3')">AI视觉识别</button>
             </div>
 
             <div id="tab1" class="tab-content active">
@@ -367,14 +324,55 @@
             </div>
 
             <div id="tab3" class="tab-content">
-                <h2>第三页内容</h2>
-                <p>这里是第三页的动态内容，可以根据需要添加表单或文本。</p>
+                <h2>👁️ AI 视觉识别 (支持手写/公式/拍照)</h2>
+                
+                <div class="input-methods">
+                    <div class="input-option selected" id="opt-file" onclick="toggleInputMethod('file')">📂 文件上传</div>
+                    <div class="input-option" id="opt-camera" onclick="toggleInputMethod('camera')">📸 拍照上传</div>
+                </div>
+
+                <div class="vision-container">
+                    <div id="file-upload-area">
+                        <input type="file" id="vision-file-input" accept="image/*" onchange="handleFileSelect(event)">
+                        <p style="color:#888; margin-top:10px;">支持 JPG, PNG, GIF</p>
+                    </div>
+
+                    <div id="camera-area" style="display:none; width:100%; text-align:center;">
+                        <video id="camera-stream" autoplay playsinline></video>
+                        <div style="margin-top:10px;">
+                            <button id="btn-start-camera" class="camera-btn" onclick="startCamera()">🔌 打开摄像头</button>
+                            <button id="btn-take-photo" class="camera-btn" onclick="takePhoto()" style="display:none;">🔘 拍照</button>
+                            <button id="btn-retake" onclick="resetCamera()" style="display:none; background:#999;">🔄 重拍</button>
+                        </div>
+                    </div>
+
+                    <img id="preview-image" alt="Preview">
+                    <canvas id="canvas-capture"></canvas> </div>
+
+                <div class="btn-group">
+                    <button id="btn-run-vision" onclick="runAIVision()" class="run-ai-button">🚀 AI 识别内容</button>
+                </div>
+
+                <div id="vision-status" class="ocr-status"></div>
+
+                <h2>识别结果</h2>
+                <textarea id="vision-result" placeholder="AI 识别到的文字内容将显示在这里..."></textarea>
+                
+                <div class="btn-group">
+                    <button onclick="copyVisionResult()" class="copy-button">复制结果</button>
+                    <button onclick="sendVisionToTab1()" class="action-button">📝 发送到[写作/批改]</button>
+                    <button onclick="sendVisionToTab2()" class="action-button">🌐 发送到[翻译]</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // 页面加载时恢复保存的API设置
+        // 全局变量存储图片 Base64
+        let currentImageBase64 = null;
+        let cameraStream = null;
+
+        // --- 页面初始化 ---
         window.onload = function() {
             if(localStorage.getItem('ai_api_url')) document.getElementById('api-url').value = localStorage.getItem('ai_api_url');
             if(localStorage.getItem('ai_api_key')) document.getElementById('api-key').value = localStorage.getItem('ai_api_key');
@@ -382,62 +380,183 @@
             updateDynamicText();
         }
 
-        // 保存API设置
         function saveApiSettings() {
             localStorage.setItem('ai_api_url', document.getElementById('api-url').value);
             localStorage.setItem('ai_api_key', document.getElementById('api-key').value);
             localStorage.setItem('ai_model_name', document.getElementById('model-name').value);
         }
 
-        async function callAI(promptSourceId, resultTargetId) {
-            const promptText = document.getElementById(promptSourceId).textContent;
-            const resultBox = document.getElementById(resultTargetId);
+        // --- 视觉识别功能 (Vision API) ---
+
+        // 切换上传方式
+        function toggleInputMethod(method) {
+            const fileArea = document.getElementById('file-upload-area');
+            const cameraArea = document.getElementById('camera-area');
+            const optFile = document.getElementById('opt-file');
+            const optCamera = document.getElementById('opt-camera');
+            const previewImg = document.getElementById('preview-image');
+
+            // 重置状态
+            stopCamera();
+            currentImageBase64 = null;
+            previewImg.style.display = 'none';
+            document.getElementById('vision-result').value = '';
+            document.getElementById('vision-status').textContent = '';
+
+            if (method === 'file') {
+                fileArea.style.display = 'block';
+                cameraArea.style.display = 'none';
+                optFile.classList.add('selected');
+                optCamera.classList.remove('selected');
+                document.getElementById('vision-file-input').value = ''; 
+            } else {
+                fileArea.style.display = 'none';
+                cameraArea.style.display = 'block';
+                optFile.classList.remove('selected');
+                optCamera.classList.add('selected');
+                document.getElementById('btn-start-camera').style.display = 'inline-flex';
+                document.getElementById('btn-take-photo').style.display = 'none';
+                document.getElementById('btn-retake').style.display = 'none';
+                document.getElementById('camera-stream').style.display = 'none';
+            }
+        }
+
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processImageFile(file);
+            }
+        }
+
+        // 将文件转为 Base64 并预览
+        function processImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // 压缩逻辑
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    const maxSize = 1500;
+                    if (width > height && width > maxSize) {
+                        height *= maxSize / width;
+                        width = maxSize;
+                    } else if (height > maxSize) {
+                        width *= maxSize / height;
+                        height = maxSize;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    currentImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    const previewImg = document.getElementById('preview-image');
+                    previewImg.src = currentImageBase64;
+                    previewImg.style.display = 'block';
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // --- 摄像头逻辑 ---
+        async function startCamera() {
+            const video = document.getElementById('camera-stream');
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                video.srcObject = cameraStream;
+                video.style.display = 'block';
+                document.getElementById('btn-start-camera').style.display = 'none';
+                document.getElementById('btn-take-photo').style.display = 'inline-flex';
+            } catch (err) {
+                alert("无法打开摄像头: " + err.message + "\n(注意：浏览器通常要求 https 或 localhost 才能使用摄像头)");
+            }
+        }
+
+        function takePhoto() {
+            const video = document.getElementById('camera-stream');
+            const canvas = document.getElementById('canvas-capture');
+            const previewImg = document.getElementById('preview-image');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            stopCamera();
+
+            currentImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            
+            video.style.display = 'none';
+            previewImg.src = currentImageBase64;
+            previewImg.style.display = 'block';
+            document.getElementById('btn-take-photo').style.display = 'none';
+            document.getElementById('btn-retake').style.display = 'inline-flex';
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+        }
+
+        function resetCamera() {
+            document.getElementById('preview-image').style.display = 'none';
+            document.getElementById('btn-retake').style.display = 'none';
+            startCamera();
+        }
+
+        // --- 调用 AI 进行识别 ---
+        async function runAIVision() {
+            if (!currentImageBase64) {
+                alert("请先上传图片或拍照！");
+                return;
+            }
+
+            const btn = document.getElementById('btn-run-vision');
+            const status = document.getElementById('vision-status');
+            const resultArea = document.getElementById('vision-result');
             let apiUrl = document.getElementById('api-url').value.trim();
             const apiKey = document.getElementById('api-key').value.trim();
             const modelName = document.getElementById('model-name').value.trim();
-            const button = document.querySelector(`button[onclick="callAI('${promptSourceId}', '${resultTargetId}')"]`);
 
-            // 基础校验
             if (!apiKey) {
-                alert('请先在顶部填写 API Key！');
-                document.querySelector('.api-settings').scrollIntoView({behavior: 'smooth'});
-                return;
-            }
-            if (promptText.includes('请填写完整信息')) {
-                alert('请先填写完整表单信息生成提示词！');
+                alert("请在顶部填写 API Key");
                 return;
             }
 
-            // 保存设置
             saveApiSettings();
 
-            // UI 状态更新
-            resultBox.style.display = 'block';
-            resultBox.innerHTML = '<div style="text-align:center; color:#666;"><span class="loading-spinner loading-spinner-dark"></span> 正在思考中，请稍候...</div>';
-            button.disabled = true;
-            const originalBtnText = button.innerHTML;
-            button.innerHTML = '<span class="loading-spinner"></span> 生成中...';
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span> AI 正在识别中...';
+            status.textContent = "正在上传图片并分析内容...";
+            resultArea.value = "";
 
             try {
-                // === URL 处理逻辑修正 ===
-                // 1. 去掉末尾的斜杠
                 apiUrl = apiUrl.replace(/\/+$/, "");
-
-                // 2. 智能补全 endpoint
-                // 如果用户输入的是 Base URL (不包含 chat/completions)
-                // 大多数兼容接口格式为 /v1/chat/completions
                 let endpoint = apiUrl;
                 if (!endpoint.includes('/chat/completions')) {
-                    // 如果已经包含了 /v1 但没有 chat/completions (例如 https://api.moonshot.cn/v1)
-                    if (endpoint.endsWith('/v1')) {
-                         endpoint = `${endpoint}/chat/completions`;
-                    } else {
-                        // 既没有 /v1 也没有 chat/completions (例如 https://api.deepseek.com)
-                        endpoint = `${endpoint}/v1/chat/completions`;
-                    }
+                    if (endpoint.endsWith('/v1')) endpoint += '/chat/completions';
+                    else endpoint += '/v1/chat/completions';
                 }
 
-                console.log("请求地址:", endpoint); // 方便调试
+                // --- 修改后的 Prompt ---
+                const ocrPrompt = `你是一个专业的OCR（光学字符识别）引擎，请严格按照图片中的原文进行逐字转录。要求如下：
+1. 原样输出：不要修改任何拼写错误、语法错误或标点符号，即使原文是错的也要照抄；
+2. 完整性：不要遗漏任何文字，包括页眉、页脚、页码和微小的注释；
+3. 无废话：直接输出识别后的文本，不要包含“好的”、“这是图片内容”等任何开场白或结束语；
+4. 无法识别的处理：如果遇到完全无法辨认的字迹，请使用 [?] 代替，不要猜测；
+5. 如果是数学公式，请使用标准格式输出；
+6. 如果是表格，请还原为Markdown表格；
+7. 如果是手写体，请尽量准确识别。`;
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -448,68 +567,133 @@
                     body: JSON.stringify({
                         model: modelName,
                         messages: [
-                            { role: "user", content: promptText }
+                            {
+                                role: "user",
+                                content: [
+                                    { type: "text", text: ocrPrompt },
+                                    { type: "image_url", image_url: { url: currentImageBase64 } }
+                                ]
+                            }
                         ],
-                        temperature: 0.7,
-                        stream: false 
+                        max_tokens: 3000
                     })
                 });
 
-                // === 错误处理逻辑修正 ===
                 if (!response.ok) {
-                    let errorMessage = `请求失败: ${response.status} ${response.statusText}`;
-                    try {
-                        // 尝试解析返回的 JSON 错误信息
-                        const errorData = await response.json();
-                        if (errorData.error && errorData.error.message) {
-                            errorMessage += `\n原因: ${errorData.error.message}`;
-                        } else {
-                            errorMessage += `\n详情: ${JSON.stringify(errorData)}`;
-                        }
-                    } catch (e) {
-                        // 如果解析 JSON 失败（比如返回了 "Not Found" 纯文本），则读取文本内容
-                        const errorText = await response.text();
-                        if (errorText) {
-                            errorMessage += `\n服务器返回: ${errorText}`;
-                        }
-                        // 提示用户检查 URL
-                        if (response.status === 404) {
-                            errorMessage += `\n\n(提示：404 通常意味着 API 地址填写不正确，请检查是否多写或少写了路径)`;
-                        }
-                    }
-                    throw new Error(errorMessage);
+                    const errText = await response.text();
+                    throw new Error(`API 错误 (${response.status}): ${errText}`);
                 }
 
                 const data = await response.json();
+                const content = data.choices[0].message.content;
                 
-                if (!data.choices || data.choices.length === 0) {
-                    throw new Error('API 返回的数据格式不正确或为空');
-                }
+                resultArea.value = content;
+                status.innerHTML = `<span style="color:green">✅ 识别成功！</span>`;
 
-                const aiContent = data.choices[0].message.content;
-
-                // 使用 Marked.js 渲染 Markdown
-                resultBox.innerHTML = marked.parse(aiContent);
-
-            } catch (error) {
-                // 显示详细错误
-                resultBox.innerHTML = `<div style="color:#d32f2f; background:#ffebee; padding:10px; border-radius:4px; font-weight:bold; white-space:pre-wrap;">${error.message}</div>`;
+            } catch (err) {
+                console.error(err);
+                status.innerHTML = `<span style="color:red">❌ 识别失败: ${err.message}</span>`;
             } finally {
-                // 恢复按钮状态
-                button.disabled = false;
-                button.innerHTML = '🤖 AI 生成答案';
+                btn.disabled = false;
+                btn.innerHTML = '🚀 AI 识别内容';
             }
         }
 
+        function copyVisionResult() {
+            const text = document.getElementById('vision-result').value;
+            if(!text) return alert("没有内容");
+            navigator.clipboard.writeText(text).then(() => alert('已复制'));
+        }
+
+        function sendVisionToTab1() {
+            const text = document.getElementById('vision-result').value;
+            if(!text) return alert("无内容");
+            switchTab({target: document.querySelector('button[onclick*="tab1"]')}, 'tab1');
+            document.getElementById('essay-content').value = text;
+            updateDynamicText();
+            document.getElementById('essay-content').scrollIntoView({behavior: 'smooth'});
+        }
+
+        function sendVisionToTab2() {
+            const text = document.getElementById('vision-result').value;
+            if(!text) return alert("无内容");
+            switchTab({target: document.querySelector('button[onclick*="tab2"]')}, 'tab2');
+            document.getElementById('original-text').value = text;
+            updateTranslations();
+            document.getElementById('original-text').scrollIntoView({behavior: 'smooth'});
+        }
+
+        // --- 基础 UI 逻辑 ---
         function switchTab(event, tabId) {
+            const target = event.target || event;
             const tabButtons = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
 
             tabButtons.forEach(button => button.classList.remove('active'));
             tabContents.forEach(content => content.classList.remove('active'));
 
-            event.target.classList.add('active');
+            if (target.classList.contains('tab-btn')) {
+                target.classList.add('active');
+            } else {
+                const index = tabId === 'tab1' ? 0 : (tabId === 'tab2' ? 1 : 2);
+                tabButtons[index].classList.add('active');
+            }
             document.getElementById(tabId).classList.add('active');
+            
+            // 如果切换出 Tab3，关闭摄像头以省电
+            if(tabId !== 'tab3') stopCamera();
+        }
+
+        async function callAI(promptSourceId, resultTargetId) {
+            const promptText = document.getElementById(promptSourceId).textContent;
+            const resultBox = document.getElementById(resultTargetId);
+            let apiUrl = document.getElementById('api-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+            const modelName = document.getElementById('model-name').value.trim();
+            const button = document.querySelector(`button[onclick="callAI('${promptSourceId}', '${resultTargetId}')"]`);
+
+            if (!apiKey) {
+                alert('请先在顶部填写 API Key！');
+                return;
+            }
+            if (promptText.includes('请填写完整信息')) {
+                alert('请先填写完整表单信息生成提示词！');
+                return;
+            }
+            
+            saveApiSettings();
+
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '<div style="text-align:center; color:#666;"><span class="loading-spinner loading-spinner-dark"></span> 正在思考中...</div>';
+            button.disabled = true;
+
+            try {
+                apiUrl = apiUrl.replace(/\/+$/, "");
+                let endpoint = apiUrl;
+                if (!endpoint.includes('/chat/completions')) {
+                    if (endpoint.endsWith('/v1')) endpoint += '/chat/completions';
+                    else endpoint += '/v1/chat/completions';
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: modelName,
+                        messages: [{ role: "user", content: promptText }],
+                        temperature: 0.7
+                    })
+                });
+
+                if (!response.ok) throw new Error(await response.text());
+                const data = await response.json();
+                resultBox.innerHTML = marked.parse(data.choices[0].message.content);
+
+            } catch (error) {
+                resultBox.innerHTML = `<div style="color:red">${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+            }
         }
 
         function updateDynamicText() {
@@ -709,18 +893,19 @@
                 ].join('\n');
             }
         }
-
+        
         function copyToClipboard(targetId) {
-            const content = document.querySelector(targetId).textContent;
-            const tempTextArea = document.createElement('textarea');
-            tempTextArea.value = content;
-            document.body.appendChild(tempTextArea);
-            tempTextArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempTextArea);
-            alert('内容已复制到剪贴板！');
+             const content = document.querySelector(targetId).textContent;
+             const tempTextArea = document.createElement('textarea');
+             tempTextArea.value = content;
+             document.body.appendChild(tempTextArea);
+             tempTextArea.select();
+             document.execCommand('copy');
+             document.body.removeChild(tempTextArea);
+             alert('内容已复制到剪贴板！');
         }
 
+        // 页面加载触发一次更新
         updateDynamicText();
     </script>
 </body>
