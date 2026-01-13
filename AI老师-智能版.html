@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI老师 - 智能版</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            margin: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        /* API 设置区域样式 */
+        .api-settings {
+            background-color: #e8f5e9;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #c8e6c9;
+            margin-bottom: 20px;
+        }
+        
+        .api-settings h3 {
+            margin-top: 0;
+            color: #2e7d32;
+            font-size: 1.1em;
+        }
+
+        .api-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .api-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+
+        .tips {
+            font-size: 12px; 
+            color: #666; 
+            margin-top: 5px;
+            line-height: 1.4;
+        }
+
+        select, input, textarea {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        h1 { text-align: center; color: #333; margin-top: 20px; }
+        h2 { color: #333; margin-top: 25px; font-size: 1.2em; border-left: 4px solid #4CAF50; padding-left: 10px; }
+
+        textarea { resize: vertical; min-height: 120px; font-family: inherit; }
+
+        .dynamic-display {
+            margin: 10px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #555;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* AI 回答区域样式 */
+        .ai-result-display {
+            margin-top: 10px;
+            padding: 20px;
+            background-color: #fff;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            min-height: 100px;
+            line-height: 1.6;
+        }
+
+        .ai-result-display table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px 0;
+        }
+        
+        .ai-result-display th, .ai-result-display td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .copy-button {
+            padding: 8px 15px;
+            font-size: 14px;
+            background-color: #607d8b;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .copy-button:hover { background-color: #546e7a; }
+
+        .run-ai-button {
+            padding: 8px 15px;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .run-ai-button:hover { background-color: #45a049; }
+        .run-ai-button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+        .loading-spinner-dark {
+            border-color: #4CAF50;
+            border-top-color: transparent;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .tab-container { border-bottom: 2px solid #ddd; margin-bottom: 20px; }
+        .tab-header { display: flex; justify-content: flex-start; background-color: #f4f4f4; padding: 0; overflow-x: auto;}
+        .tab-header button {
+            background-color: transparent; border: none; cursor: pointer; padding: 15px 25px; font-size: 16px; margin: 0;
+            border-bottom: 3px solid transparent; transition: all 0.3s; white-space: nowrap;
+        }
+        .tab-header button:hover { background-color: #e0e0e0; }
+        .tab-header button.active { background-color: #fff; border-bottom: 3px solid #4CAF50; color: #4CAF50; font-weight: bold; }
+        .tab-content { display: none; padding: 20px 0; }
+        .tab-content.active { display: block; }
+
+        @media screen and (max-width: 600px) {
+            .container { margin: 10px; padding: 15px; }
+            .api-row { flex-direction: column; gap: 5px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>AI老师 - 智能助手</h1>
+    <div class="container">
+        <div class="api-settings">
+            <h3>⚙️ API 配置</h3>
+            <div class="api-row">
+                <input type="text" id="api-url" class="api-input" placeholder="API Base URL (如 https://api.deepseek.com)" value="https://api.openai.com">
+                <input type="password" id="api-key" class="api-input" placeholder="请输入 API Key (sk-...)">
+            </div>
+            <div class="api-row">
+                <input type="text" id="model-name" class="api-input" placeholder="模型名称 (如 deepseek-chat, gpt-4o)" value="gpt-3.5-turbo">
+            </div>
+            <div class="tips">
+                * <b>地址填写提示</b>：请填写 Base URL 即可。例如 DeepSeek 填写 <code>https://api.deepseek.com</code>，Kimi 填写 <code>https://api.moonshot.cn/v1</code>。<br>
+                * 代码会自动为您拼接 <code>/v1/chat/completions</code> 或 <code>/chat/completions</code>。
+            </div>
+        </div>
+
+        <div class="tab-container">
+            <div class="tab-header">
+                <button class="tab-btn active" onclick="switchTab(event, 'tab1')">写作答题</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab2')">英汉翻译</button>
+                <button class="tab-btn" onclick="switchTab(event, 'tab3')">其他功能</button>
+            </div>
+
+            <div id="tab1" class="tab-content active">
+                <h2>请选择年级</h2>
+                <select name="grade" id="grade-select" onchange="updateDynamicText()">
+                    <option value="" disabled selected></option>
+                    <optgroup label="小学">
+                        <option value="小学一年级">小学一年级</option>
+                        <option value="小学二年级">小学二年级</option>
+                        <option value="小学三年级">小学三年级</option>
+                        <option value="小学四年级">小学四年级</option>
+                        <option value="小学五年级">小学五年级</option>
+                        <option value="小学六年级">小学六年级</option>
+                    </optgroup>
+                    <optgroup label="初中">
+                        <option value="初中一年级">初中一年级</option>
+                        <option value="初中二年级">初中二年级</option>
+                        <option value="初中三年级">初中三年级</option>
+                    </optgroup>
+                    <optgroup label="高中">
+                        <option value="高中一年级">高中一年级</option>
+                        <option value="高中二年级">高中二年级</option>
+                        <option value="高中三年级">高中三年级</option>
+                    </optgroup>
+                </select>
+
+                <h2>请选择学科</h2>
+                <select name="subject" id="subject-select" onchange="updateDynamicText()">
+                    <option value="" disabled selected></option>
+                    <option value="语文">语文</option>
+                    <option value="数学">数学</option>
+                    <option value="英语">英语</option>
+                </select>
+
+                <h2>请输入字数</h2>
+                <input type="number" name="number" id="number-input" placeholder="请输入字数" required onchange="updateDynamicText()">
+
+                <h2>请选择文体</h2>
+                <select name="genre" id="genre-select" onchange="updateDynamicText()">
+                    <option value="" disabled selected></option>
+                    <optgroup label="看图写话">
+                        <option value="1">记事类看图写话</option>
+                        <option value="2">写景物类看图写话</option>
+                        <option value="3">写人物类看图写话</option>
+                        <option value="4">写状物类看图写话</option>
+                    </optgroup>
+                    <optgroup label="常见文体">
+                        <option value="5">留言条</option>
+                        <option value="6">日记</option>
+                        <option value="7">写人物类</option>
+                        <option value="8">记事类</option>
+                        <option value="9">写景物类</option>
+                        <option value="10">状物类</option>
+                        <option value="11">童话类</option>
+                        <option value="12">想象类</option>
+                    </optgroup>
+                    <optgroup label="作文类型">
+                        <option value="13">说明文</option>
+                        <option value="14">写信</option>
+                        <option value="15">读后感</option>
+                        <option value="16">建议书</option>
+                        <option value="17">演讲稿</option>
+                        <option value="18">漫画作文</option>
+                        <option value="19">故事缩写</option>
+                        <option value="20">诗歌</option>
+                    </optgroup>
+                    <optgroup label="文学作品">
+                        <option value="21">作品梗概</option>
+                        <option value="22">小小说</option>
+                        <option value="23">写人记叙文</option>
+                        <option value="24">叙事记叙文</option>
+                        <option value="25">写景记叙文</option>
+                        <option value="26">状物记叙文</option>
+                        <option value="27">议论文</option>
+                    </optgroup>
+                    <optgroup label="实用文">
+                        <option value="28">新闻(消息)</option>
+                        <option value="29">传记</option>
+                        <option value="30">书信</option>
+                        <option value="31">游记</option>
+                        <option value="32">作品缩写</option>
+                        <option value="33">想象作文</option>
+                        <option value="34">叙事散文</option>
+                        <option value="35">其他</option>
+                    </optgroup>
+                </select>
+
+                <h2>写作要求</h2>
+                <textarea name="writing-requirements" id="writing-requirements" placeholder="请输入写作要求" onchange="updateDynamicText()"></textarea>
+
+                <h2>作文标题</h2>
+                <input type="text" name="essay-title" id="essay-title" placeholder="请输入作文标题" onchange="updateDynamicText()">
+
+                <h2>作文正文</h2>
+                <textarea name="essay-content" id="essay-content" placeholder="请输入作文正文" onchange="updateDynamicText()"></textarea>
+
+                <h2>数学问题</h2>
+                <textarea name="math-problem" id="math-problem" placeholder="请输入数学问题" onchange="updateDynamicText()"></textarea>
+
+                <h2>英语问题</h2>
+                <textarea name="english-problem" id="english-problem" placeholder="请输入英语问题" onchange="updateDynamicText()"></textarea>
+
+                <h2>1. 批改作文、分析解答数学、英语问题</h2>
+                <div id="dynamic-text" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#dynamic-text')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('dynamic-text', 'result-1')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-1" class="ai-result-display" style="display:none;"></div>
+
+                <h2>2. 根据要求写作语文、英语范文</h2>
+                <div id="new-dynamic-text" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#new-dynamic-text')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('new-dynamic-text', 'result-2')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-2" class="ai-result-display" style="display:none;"></div>
+
+                <h2>3. 语文、英语写作出题</h2>
+                <div id="third-dynamic-text" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#third-dynamic-text')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('third-dynamic-text', 'result-3')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-3" class="ai-result-display" style="display:none;"></div>
+            </div>
+
+            <div id="tab2" class="tab-content">
+                <h2>原文</h2>
+                <textarea name="original-text" id="original-text" placeholder="请输入原文" required onchange="updateTranslations()"></textarea>
+
+                <h2>翻译方向</h2>
+                <select name="translation-direction" id="translation-direction" onchange="updateTranslations()">
+                    <option value="" disabled selected>请选择翻译方向</option>
+                    <option value="cn">翻译成中文</option>
+                    <option value="en">翻译成英文</option>
+                </select>
+
+                <h2>1. 逐句翻译</h2>
+                <div id="sentence-by-sentence" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#sentence-by-sentence')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('sentence-by-sentence', 'result-trans-1')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-trans-1" class="ai-result-display" style="display:none;"></div>
+
+                <h2>2. 全文翻译</h2>
+                <div id="full-translation" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#full-translation')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('full-translation', 'result-trans-2')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-trans-2" class="ai-result-display" style="display:none;"></div>
+
+                <h2>3. 精准翻译</h2>
+                <div id="precise-translation" class="dynamic-display"></div>
+                <div class="btn-group">
+                    <button onclick="copyToClipboard('#precise-translation')" class="copy-button">复制提示词</button>
+                    <button onclick="callAI('precise-translation', 'result-trans-3')" class="run-ai-button">🤖 AI 生成答案</button>
+                </div>
+                <div id="result-trans-3" class="ai-result-display" style="display:none;"></div>
+            </div>
+
+            <div id="tab3" class="tab-content">
+                <h2>第三页内容</h2>
+                <p>这里是第三页的动态内容，可以根据需要添加表单或文本。</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载时恢复保存的API设置
+        window.onload = function() {
+            if(localStorage.getItem('ai_api_url')) document.getElementById('api-url').value = localStorage.getItem('ai_api_url');
+            if(localStorage.getItem('ai_api_key')) document.getElementById('api-key').value = localStorage.getItem('ai_api_key');
+            if(localStorage.getItem('ai_model_name')) document.getElementById('model-name').value = localStorage.getItem('ai_model_name');
+            updateDynamicText();
+        }
+
+        // 保存API设置
+        function saveApiSettings() {
+            localStorage.setItem('ai_api_url', document.getElementById('api-url').value);
+            localStorage.setItem('ai_api_key', document.getElementById('api-key').value);
+            localStorage.setItem('ai_model_name', document.getElementById('model-name').value);
+        }
+
+        async function callAI(promptSourceId, resultTargetId) {
+            const promptText = document.getElementById(promptSourceId).textContent;
+            const resultBox = document.getElementById(resultTargetId);
+            let apiUrl = document.getElementById('api-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+            const modelName = document.getElementById('model-name').value.trim();
+            const button = document.querySelector(`button[onclick="callAI('${promptSourceId}', '${resultTargetId}')"]`);
+
+            // 基础校验
+            if (!apiKey) {
+                alert('请先在顶部填写 API Key！');
+                document.querySelector('.api-settings').scrollIntoView({behavior: 'smooth'});
+                return;
+            }
+            if (promptText.includes('请填写完整信息')) {
+                alert('请先填写完整表单信息生成提示词！');
+                return;
+            }
+
+            // 保存设置
+            saveApiSettings();
+
+            // UI 状态更新
+            resultBox.style.display = 'block';
+            resultBox.innerHTML = '<div style="text-align:center; color:#666;"><span class="loading-spinner loading-spinner-dark"></span> 正在思考中，请稍候...</div>';
+            button.disabled = true;
+            const originalBtnText = button.innerHTML;
+            button.innerHTML = '<span class="loading-spinner"></span> 生成中...';
+
+            try {
+                // === URL 处理逻辑修正 ===
+                // 1. 去掉末尾的斜杠
+                apiUrl = apiUrl.replace(/\/+$/, "");
+
+                // 2. 智能补全 endpoint
+                // 如果用户输入的是 Base URL (不包含 chat/completions)
+                // 大多数兼容接口格式为 /v1/chat/completions
+                let endpoint = apiUrl;
+                if (!endpoint.includes('/chat/completions')) {
+                    // 如果已经包含了 /v1 但没有 chat/completions (例如 https://api.moonshot.cn/v1)
+                    if (endpoint.endsWith('/v1')) {
+                         endpoint = `${endpoint}/chat/completions`;
+                    } else {
+                        // 既没有 /v1 也没有 chat/completions (例如 https://api.deepseek.com)
+                        endpoint = `${endpoint}/v1/chat/completions`;
+                    }
+                }
+
+                console.log("请求地址:", endpoint); // 方便调试
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: modelName,
+                        messages: [
+                            { role: "user", content: promptText }
+                        ],
+                        temperature: 0.7,
+                        stream: false 
+                    })
+                });
+
+                // === 错误处理逻辑修正 ===
+                if (!response.ok) {
+                    let errorMessage = `请求失败: ${response.status} ${response.statusText}`;
+                    try {
+                        // 尝试解析返回的 JSON 错误信息
+                        const errorData = await response.json();
+                        if (errorData.error && errorData.error.message) {
+                            errorMessage += `\n原因: ${errorData.error.message}`;
+                        } else {
+                            errorMessage += `\n详情: ${JSON.stringify(errorData)}`;
+                        }
+                    } catch (e) {
+                        // 如果解析 JSON 失败（比如返回了 "Not Found" 纯文本），则读取文本内容
+                        const errorText = await response.text();
+                        if (errorText) {
+                            errorMessage += `\n服务器返回: ${errorText}`;
+                        }
+                        // 提示用户检查 URL
+                        if (response.status === 404) {
+                            errorMessage += `\n\n(提示：404 通常意味着 API 地址填写不正确，请检查是否多写或少写了路径)`;
+                        }
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                const data = await response.json();
+                
+                if (!data.choices || data.choices.length === 0) {
+                    throw new Error('API 返回的数据格式不正确或为空');
+                }
+
+                const aiContent = data.choices[0].message.content;
+
+                // 使用 Marked.js 渲染 Markdown
+                resultBox.innerHTML = marked.parse(aiContent);
+
+            } catch (error) {
+                // 显示详细错误
+                resultBox.innerHTML = `<div style="color:#d32f2f; background:#ffebee; padding:10px; border-radius:4px; font-weight:bold; white-space:pre-wrap;">${error.message}</div>`;
+            } finally {
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = '🤖 AI 生成答案';
+            }
+        }
+
+        function switchTab(event, tabId) {
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => button.classList.remove('active'));
+            tabContents.forEach(content => content.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function updateDynamicText() {
+            const gradeSelect = document.getElementById('grade-select');
+            const subjectSelect = document.getElementById('subject-select');
+            const writingRequirements = document.getElementById('writing-requirements').value;
+            const essayTitle = document.getElementById('essay-title').value;
+            const essayContent = document.getElementById('essay-content').value;
+            const mathProblem = document.getElementById('math-problem').value;
+            const englishProblem = document.getElementById('english-problem').value;
+            const dynamicTextElem = document.getElementById('dynamic-text');
+            const newDynamicTextElem = document.getElementById('new-dynamic-text');
+            const thirdDynamicTextElem = document.getElementById('third-dynamic-text');
+            const numberInput = parseInt(document.getElementById('number-input').value) || 0;
+            const genreSelect = document.getElementById('genre-select');
+
+            const grade = gradeSelect.value;
+            const subject = subjectSelect.value;
+
+            const defaultContent = '请填写完整信息以查看动态内容！';
+
+            if (grade && subject) {
+                const subjectText = subject === '语文' ? '写作' : subject;
+                const genreValue = genreSelect.value;
+                const selectedGenreText = genreSelect.selectedIndex >=0 ? genreSelect.options[genreSelect.selectedIndex].text : '';
+
+                let additionalContent = [];
+
+                if (subject === '语文') {
+                    additionalContent = [
+                        `**写作要求：** ${writingRequirements}`,
+                        `**作文标题：** ${essayTitle}`,
+                        `**作文正文：** ${essayContent}`,
+                        `我是一名${grade}的学生，我想学习好${subjectText}。我希望你扮演一名教学经验非常丰富的语文老师，你擅长语法、修辞分析、内容评估、逻辑思维、鼓励学生、提供具体建议、个性化反馈、沟通技巧等，可有效批改作文并帮助学生提高写作水平。当我提出关于作文的问题时，请对作文一句一句斟酌，并按照以下格式予以批改，输出内容使用Markdown进行渲染。`,
+                        '**一、综合评语**',
+                        `请结合${selectedGenreText}的文体和写作要求对作文的内容、表达、主题、结构、情感、语法等方面以积极肯定的语气给出客观详实的评语，评语字数不少于50字；`,
+                        '**二、总体评分**',
+                        '以百分制给作文评分；',
+                        '**三、不足之处**',
+                        '生成一个表格，横轴为序号、类别、错误/不足之处、修改建议，竖轴第一列为数字1至10；结合' + selectedGenreText + '的文体和写作要求分别对“主题契合度、结构与组织、内容与观点、逻辑连贯性、措辞准确性、语言与情感、修辞和描写、用例与细节、创意与想象、语法与标点”10个类别逐条提出不足；',
+                        '**四、提升建议**',
+                        '**五、审题立意**',
+                        '**六、谋篇布局**',
+                        '**七、选材用材**',
+                        '**八、语言修辞**',
+                        '**九、分析说理**',
+                        '**十、写作提纲**',
+                        '**十一、写作技法**',
+                        '**十二、范文**',
+                        `提供修改并润色后的范文，范文字数不少于${numberInput}字且不超过${Math.floor(numberInput * 1.1)}字；标题自拟；范文结束后落款“**修辞华章文坊**”。`
+                    ];
+                } else if (subject === '数学') {
+                    additionalContent = [
+                        `**数学问题：** ${mathProblem}`,
+                        `我是一名${grade}的学生，我想学习好数学。我希望你扮演一名教学经验非常丰富的数学老师，你擅长数学概念解释、问题分析、教学方法多样性、个性化指导、纠正错误、培养问题解决能力以及激发兴趣，可帮助学生有效的提高数学思维和概念理解能力。当我提出关于数学的问题时，请一步一步进行计算，并将计算结果代入题目进行验算，验算无误后请按照以下格式予以解答，输出内容请使用标准数学符号，不要使用LaTex格式表达，同时使用Markdown进行渲染。`,
+                        '**一、题目分析**',
+                        '**二、解题思路**',
+                        '**三、解题方法**',
+                        '**四、解题步骤**',
+                        '**五、计算过程**',
+                        '**六、总结知识点**',
+                        '**七、同类题型**',
+                        '根据知识点出2个同类题型，分别给出答案。'
+                    ];
+                } else if (subject === '英语') {
+                    additionalContent = [
+                        `**英语问题：** ${englishProblem}`,
+                        `我是一名${grade}的学生，我想学习好英语。我希望你扮演一名教学经验非常丰富的英语老师，你擅长英语问题分析、清晰解释、示范解答、引导学生独立思考和提供个性化支持，可帮助学生有效的提高阅读理解能力和语法水平。当我提出关于英语的问题时，请按照以下格式予以解答，最后输出内容使用Markdown进行渲染。`,
+                        '**一、英汉翻译**',
+                        '将原文与译文逐句对照翻译成中文，把英语字体标记为粗体；',
+                        '**二、题目分析**',
+                        '**三、解题思路**',
+                        '**四、解题方法**',
+                        '**五、解题步骤**',
+                        '**六、总结知识点**',
+                        '**七、同类题型**',
+                        '根据知识点出2个同类题型。'
+                    ];
+                }
+
+                dynamicTextElem.textContent = additionalContent.join('\n');
+            } else {
+                dynamicTextElem.textContent = defaultContent;
+            }
+
+            newDynamicTextElem.textContent = defaultContent;
+            if (grade && subject && (subject === '语文' || subject === '英语')) {
+                const selectedGenreText = genreSelect.selectedIndex >=0 ? genreSelect.options[genreSelect.selectedIndex].text : '';
+                const minWordCount = numberInput;
+                const maxWordCount = Math.floor(numberInput * 1.1);
+
+                const newDynamicContent = [
+                    `**写作要求：** ${writingRequirements}`,
+                    "",
+                    `我是一名${grade}的学生，我想学习好${subject === '语文' ? '写作' : '英语'}。我希望你扮演一名教学经验非常丰富的${subject}老师。你擅长语法、修辞分析、内容评估、逻辑思维、鼓励学生、提供具体建议、个性化反馈、沟通技巧等，可帮助学生有效提高写作水平。`,
+                    "",
+                    `请用${grade}学生的写作风格，按照审题立意、谋篇布局、选材用材、语言修辞、分析说理等五大写作关键因素，一步一步思考，结合${selectedGenreText}的文体和写作要求，写一篇内容新颖、表达清晰、主题鲜明、结构完整、情感真实的作文，标题自拟，作文字数不少于${minWordCount}字且不超过${maxWordCount}字，写作结束后落款“**修辞华章文坊**”，输出内容使用Markdown进行渲染。`
+                ];
+
+                newDynamicTextElem.textContent = newDynamicContent.join('\n');
+            }
+
+            thirdDynamicTextElem.textContent = defaultContent;
+            if (grade && subject && (subject === '语文' || subject === '英语')) {
+                const selectedGenreText = genreSelect.selectedIndex >=0 ? genreSelect.options[genreSelect.selectedIndex].text : '';
+                const minWordCount = numberInput;
+                const maxWordCount = Math.floor(numberInput * 1.1);
+
+                const thirdDynamicContent = [
+                    `我希望你扮演一名教学经验非常丰富的${subject}老师。你擅长语法、修辞分析、内容评估、逻辑思维、鼓励学生、提供具体建议、个性化反馈、沟通技巧等，可帮助学生有效提高写作水平。`,
+                    "",
+                    `请根据${grade}学生的写作水平，为学生出一个${subject}作文习题，结合${selectedGenreText}的文体，选择一个主题、定义写作任务、确定作文要求，作文字数不少于${minWordCount}字且不超过${maxWordCount}字，输出内容使用Markdown进行渲染。`
+                ];
+
+                thirdDynamicTextElem.textContent = thirdDynamicContent.join('\n');
+            }
+        }
+
+        function updateTranslations() {
+            const originalText = document.getElementById('original-text').value;
+            const translationDirection = document.getElementById('translation-direction').value;
+            const sentenceBySentence = document.getElementById('sentence-by-sentence');
+            const fullTranslation = document.getElementById('full-translation');
+            const preciseTranslation = document.getElementById('precise-translation');
+
+            const defaultTranslationContent = '请填写完整信息以查看翻译内容！';
+
+            sentenceBySentence.textContent = defaultTranslationContent;
+            fullTranslation.textContent = defaultTranslationContent;
+            preciseTranslation.textContent = defaultTranslationContent;
+
+            if (translationDirection && translationDirection.trim() !== '') {
+                sentenceBySentence.textContent = [
+                    `我从事翻译工作，我想学习好翻译。我希望你扮演一名经验丰富的语言专家，擅长多种语言的翻译工作，能够理解并准确翻译各种语言，包括但不限于专业术语、俚语和文化特定表达。当我提供任意语言原文时，请对原文逐句理解，并按照以下格式予以翻译，输出内容使用Markdown进行渲染。`,
+                    "",
+                    `**一、原文**`,
+                    `**${originalText}**`,
+                    "",
+                    `**二、译文**`,
+                    `1.将原文${translationDirection === 'cn' ? '翻译成中文' : '翻译成英文'}；`,
+                    `2.对翻译的结果进行校对，确保翻译准确、流畅且贴近原文的意境；`,
+                    `3.如果原文中包含专有名词、人名等，需在翻译文本后以括号形式给出原文参考；`,
+                    `4.翻译完成后落款“**修辞华章文坊**”。`,
+                    "",
+                    `**直译版本**忠实于原文的字面意思，适用于文本的直接对应翻译；`,
+                    `**意译版本**侧重于传达原文的内在意义和情感，适用于保持原文的情感色彩和文化背景；`,
+                    `**综合直译意译版本**结合直译和意译的优点，创造一个既忠实原文又能流畅表达的翻译。`
+                ].join('\n');
+
+                fullTranslation.textContent = [
+                    `我从事翻译工作，我想学习好翻译。我希望你扮演一名经验丰富的语言专家，擅长多种语言的翻译工作，能够理解并准确翻译各种语言，包括但不限于专业术语、俚语和文化特定表达。当我提供任意语言原文时，请对原文逐句理解，并按照以下格式予以翻译，输出内容使用Markdown进行渲染。`,
+                    "",
+                    `**一、原文**`,
+                    `**${originalText}**`,
+                    "",
+                    `**二、译文**`,
+                    `1.根据原文的标点符号进行断句，将原文断句与译文逐句对照${translationDirection === 'cn' ? '翻译成中文' : '翻译成英文'}；`,
+                    `2.生成一个表格，横轴为原文断句、直译版本、意译版本、综合直译意译版本，竖轴第一列为原文的断句；`,
+                    `3.对翻译的结果进行校对，确保翻译准确、流畅且贴近原文的意境；`,
+                    `4.如果原文中包含专有名词、人名等，需在翻译文本后以括号形式给出原文参考；`,
+                    `5.翻译完成后落款“**修辞华章文坊**”。`,
+                    "",
+                    `**直译版本**`,
+                    `- 忠实于原文的字面意思，适用于文本的直接对应翻译；`,
+                    "",
+                    `**意译版本**`,
+                    `- 侧重于传达原文的内在意义和情感，适用于保持原文的情感色彩和文化背景；`,
+                    "",
+                    `**综合直译意译版本**`,
+                    `- 结合直译和意译的优点，创造一个既忠实原文又能流畅表达的翻译。`
+                ].join('\n');
+
+                preciseTranslation.textContent = [
+                    "## 角色&任务",
+                    "### 任务",
+                    `我希望你以一个专业翻译团队的身份，协助完成将原文${translationDirection === 'cn' ? '翻译成中文' : '翻译成英文'}的翻译任务.`,
+                    "### 角色",
+                    "对于每个翻译任务，我将扮演三个专家角色，分别负责翻译、校对与润色工作：",
+                    "1.翻译专家：具有20年翻译经验，精通中英双语，并拥有丰富的跨学科知识。此阶段的目标是提供一份既忠实于原文，又在译文中读起来流畅自然的初稿。在翻译时，特别注重保持原文的风格和语调。",
+                    "2.资深校对编辑：拥有20年专业编辑经验，中英文系毕业，对语法、用词有精准把握。在此阶段，您需要对翻译稿进行深度校对，包括语法、用词、风格的校正，确保翻译的准确性和易读性,进而输出第二版翻译稿。",
+                    "3.润色专家：作为一位拥有20年写作经验的获奖作家，擅长各种风格流派的写作。在此阶段，您需要在校对编辑提供的稿件基础上，进行风格上的润色，提高文本的文学美感，同时保持原文的专业性和准确性。例如，润色诗歌时应使用更优美、富有意境的语言；润色科技类文章时则应维持其专业性和准确性。",
+                    "## 工作流程",
+                    "### 1.翻译阶段",
+                    "参与人：翻译专家",
+                    "输出物：翻译稿件",
+                    "任务：提供忠实原文且流畅的译文初稿。",
+                    "### 2.校对阶段",
+                    "参与人：资深校对编辑",
+                    "输出物：校对过的翻译稿件",
+                    "任务：深度校对初稿，保证准确性和易读性。",
+                    "### 3.润色阶段",
+                    "参与人：润色专家",
+                    "输出物：润色过后的最终翻译稿",
+                    "任务：提升文本的风格美感，同时保持专业性和准确性。",
+                    "## 下面我们分别开始三个阶段。",
+                    `### ${originalText}`
+                ].join('\n');
+            }
+        }
+
+        function copyToClipboard(targetId) {
+            const content = document.querySelector(targetId).textContent;
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = content;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+            alert('内容已复制到剪贴板！');
+        }
+
+        updateDynamicText();
+    </script>
+</body>
+</html>
