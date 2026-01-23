@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 圆桌会 (目录白板版)</title>
+    <title>AI 圆桌会 (可延时版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -47,7 +47,7 @@
                         {{ viewingFile.title }}
                     </h3>
                     <div class="flex gap-2">
-                        <button @click="downloadCurrentFile" class="w-8 h-8 rounded-full bg-white border hover:bg-blue-50 text-blue-600 transition" title="下载此文件">
+                        <button @click="downloadCurrentFile" class="w-8 h-8 rounded-full bg-white border hover:bg-blue-50 text-blue-600 transition" title="下载">
                             <i class="fa-solid fa-download"></i>
                         </button>
                         <button @click="viewingFile = null" class="w-8 h-8 rounded-full bg-white border hover:bg-gray-100 text-gray-500 transition">
@@ -81,7 +81,7 @@
                     </div>
                     <div class="flex items-center justify-between">
                          <label class="text-xs font-bold text-gray-600">会议时长 (分钟)</label>
-                         <input v-model.number="settings.duration" type="number" class="w-16 p-1 border rounded text-center text-xs">
+                         <input v-model.number="settings.duration" type="number" placeholder="留空即不限时" class="w-24 p-1 border rounded text-center text-xs focus:ring-2 ring-blue-500 outline-none">
                     </div>
                     <div class="flex items-center justify-between">
                         <label class="text-xs font-bold text-gray-600 flex items-center gap-1"><i class="fa-solid fa-globe text-blue-500"></i> 联网搜索</label>
@@ -260,7 +260,16 @@
                 <span class="px-2.5 py-1 rounded-full text-[10px] font-bold" :class="statusColor">{{ statusText }}</span>
                 <span class="text-xs text-gray-500">第 <span class="font-bold">{{ currentRound }}</span> 轮</span>
             </div>
-            <div class="font-mono text-lg font-bold text-gray-700" :class="{'text-red-500': timeLeft < 60}">{{ formatTime(timeLeft) }}</div>
+            
+            <div class="font-mono text-lg font-bold text-gray-700 tabular-nums">
+                <div v-if="isUnlimited" class="flex items-center gap-1 text-blue-600 animate-pulse">
+                    <i class="fa-solid fa-stopwatch text-xs"></i>
+                    <span>{{ formatTime(elapsedTime) }}</span>
+                </div>
+                <div v-else :class="{'text-red-500': timeLeft < 60}">
+                    <span>{{ formatTime(timeLeft) }}</span>
+                </div>
+            </div>
         </header>
 
         <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-6 scroll-smooth">
@@ -269,22 +278,27 @@
                 <p class="text-sm text-gray-500">已就绪。仅主持人和书记员在场。</p>
                 <button v-if="status === 'setup'" @click="startMeeting" class="md:hidden bg-blue-600 text-white px-8 py-2 rounded-full shadow-lg font-bold mt-4">开始</button>
             </div>
+            
             <div v-for="(msg, index) in messages" :key="index" class="flex flex-col group animate-fade-in">
                 <div v-if="msg.role === '书记员'" class="mx-auto w-[95%] clerk-bubble rounded-xl p-4 shadow-sm text-xs">
                     <div class="text-purple-700 font-bold mb-2 border-b border-purple-200 pb-1 flex justify-between">
                          <span>书记员总结</span>
-                         <span class="font-normal opacity-50">{{ msg.time }}</span>
+                         <span class="font-normal opacity-60 text-[10px]">{{ msg.time }}</span>
                     </div>
                     <div class="prose prose-sm prose-purple max-w-none" v-html="renderMarkdown(msg.content)"></div>
                 </div>
                 <div v-else-if="msg.isSearchAction" class="text-xs text-blue-500 ml-4 mb-2 italic"><i class="fa-solid fa-search fa-spin"></i> 正在搜索...</div>
                 <div v-else class="flex flex-col gap-1 max-w-[90%]" :class="msg.role.includes('主持人') ? 'self-center w-full' : 'self-start'">
-                    <div class="text-[10px] text-gray-500 px-1 font-bold" :class="{'text-center': msg.role.includes('主持人')}">{{ msg.role }}</div>
+                    <div class="text-[10px] text-gray-500 px-1 flex items-center gap-2 mb-0.5" :class="{'justify-center': msg.role.includes('主持人')}">
+                        <span class="font-bold text-gray-700">{{ msg.role }}</span>
+                        <span class="font-mono text-gray-400 text-[9px]">{{ msg.time }}</span>
+                    </div>
                     <div class="p-3.5 rounded-2xl shadow-sm text-sm border" :class="[msg.role.includes('主持人') ? 'bg-orange-50 text-center' : 'bg-white', msg.isIntervention ? 'ring-2 ring-red-400 bg-red-50' : '']">
                         <div class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
                     </div>
                 </div>
             </div>
+            
             <div v-if="isAiTyping" class="flex items-center gap-2 text-gray-400 text-xs ml-4"><span class="font-bold">{{ currentSpeakerName }}</span> 正在输入...</div>
         </div>
 
@@ -304,10 +318,21 @@
                      <input v-model="interventionText" @keyup.enter="triggerIntervention" class="flex-1 border rounded-full px-4 py-2 text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 ring-red-100" placeholder="强制插话...">
                      <button @click="triggerIntervention" class="bg-white text-red-500 border border-red-200 px-4 py-2 rounded-full text-xs font-bold">插话</button>
                 </div>
+                
                 <div class="flex justify-between items-center border-t pt-2">
                     <div class="flex gap-2">
-                        <button @click="togglePause" class="text-xs bg-gray-100 px-3 py-1 rounded">{{ paused?'继续':'暂停' }}</button>
-                        <button @click="endMeeting" class="text-xs bg-gray-100 hover:bg-red-50 hover:text-red-500 px-3 py-1 rounded">结束</button>
+                        <button @click="togglePause" class="text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid" :class="paused ? 'fa-play' : 'fa-pause'"></i> 
+                            {{ paused?'继续':'暂停' }}
+                        </button>
+                        
+                        <button v-if="!isUnlimited" @click="extendMeeting" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid fa-clock-rotate-left"></i> 延时
+                        </button>
+                        
+                        <button @click="endMeeting" class="text-xs bg-gray-100 hover:bg-red-50 hover:text-red-500 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid fa-stop"></i> 结束
+                        </button>
                     </div>
                     <div class="text-[10px] text-gray-400 hidden sm:block">Current: {{ currentSpeakerName }}</div>
                 </div>
@@ -321,7 +346,7 @@
             <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
         </div>
         <div class="flex-1 overflow-y-auto p-4 bg-white pb-20 md:pb-4">
-             <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport)" class="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md transition group">
+            <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport)" class="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md transition group">
                  <div class="flex items-center gap-3">
                      <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                          <i class="fa-solid fa-file-contract text-lg"></i>
@@ -372,9 +397,9 @@
             const activeTab = ref('setup'), status = ref('setup'), paused = ref(false);
             const topic = ref('如何利用生成式 AI 优化企业内部知识管理？'), searchQuery = ref('');
             
-            // Viewer State
+            // Viewer
             const viewingFile = ref(null);
-            const openFile = (title, content, time = new Date().toLocaleTimeString()) => { viewingFile.value = { title, content, time }; };
+            const openFile = (title, content, time) => { viewingFile.value = { title, content, time }; };
             const downloadCurrentFile = () => {
                 if(!viewingFile.value) return;
                 const blob = new Blob([viewingFile.value.content], {type: 'text/markdown'});
@@ -382,13 +407,20 @@
                 a.download = `${viewingFile.value.title}.md`; a.click();
             };
 
-            // Config
+            // Helper: Generate Full Timestamp (YYYY/MM/DD HH:mm:ss)
+            const getCurrentTimestamp = () => {
+                const now = new Date();
+                const pad = n => n.toString().padStart(2, '0');
+                return `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            };
+
+            // Config - Default 10 minutes
             const apiConfig = reactive({ baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' });
-            const settings = reactive({ duration: 30, webSearch: false });
+            const settings = reactive({ duration: 10, webSearch: false });
             
             // Data
             const talentPool = ref([]);
-            const customParticipants = ref([]); // Start empty
+            const customParticipants = ref([]);
             const hostConfig = reactive({ name: '主持人', type: 'ai' });
             const clerkConfig = reactive({ name: '书记员', type: 'ai' });
             const editForm = reactive({ id: null, name: '', prompt: '' });
@@ -441,7 +473,12 @@
             const messages = ref([]), summaries = ref([]), backgroundFiles = ref([]);
             const currentRound = ref(1), speakerIndex = ref(-1), finalReport = ref(null);
             const isAiTyping = ref(false), humanInput = ref(''), interventionText = ref('');
-            const timeLeft = ref(settings.duration * 60);
+            
+            // Time Logic
+            const timeLeft = ref(null); 
+            const isUnlimited = ref(false); 
+            const elapsedTime = ref(0);     
+            
             let timerInterval = null, turnTimer = null;
 
             const allRoles = computed(() => customParticipants.value);
@@ -467,13 +504,51 @@
             const startMeeting = () => {
                 if (!topic.value.trim()) return alert("请输入议题");
                 showSettings.value = false; status.value = 'running'; paused.value = false;
-                timeLeft.value = settings.duration * 60; messages.value = []; summaries.value = [];
+                
+                // Initialize Time Logic
+                if (!settings.duration || settings.duration <= 0) {
+                    isUnlimited.value = true;
+                    elapsedTime.value = 0;
+                    timeLeft.value = null;
+                } else {
+                    isUnlimited.value = false;
+                    timeLeft.value = settings.duration * 60;
+                }
+
+                messages.value = []; summaries.value = [];
                 finalReport.value = null; currentRound.value = 1; activeTab.value = 'chat';
+                
                 if (timerInterval) clearInterval(timerInterval);
-                timerInterval = setInterval(() => { if (!paused.value && status.value === 'running') { timeLeft.value--; if (timeLeft.value <= 0) endMeeting(); } }, 1000);
+                timerInterval = setInterval(() => { 
+                    if (!paused.value && status.value === 'running') {
+                        if (isUnlimited.value) {
+                            elapsedTime.value++;
+                        } else {
+                            timeLeft.value--; 
+                            if (timeLeft.value <= 0) endMeeting();
+                        }
+                    } 
+                }, 1000);
                 
                 speakerIndex.value = -1; 
                 processTurn();
+            };
+
+            // 核心功能：延时 (Extend Meeting)
+            const extendMeeting = () => {
+                if (isUnlimited.value) return; 
+                
+                // 计算当前已消耗时间：总设定时间 - 剩余时间
+                const totalSeconds = settings.duration * 60;
+                const currentLeft = timeLeft.value || 0;
+                elapsedTime.value = totalSeconds - currentLeft;
+
+                // 切换模式
+                isUnlimited.value = true;
+                timeLeft.value = null;
+                
+                // 视觉反馈（可选，这里只在控制台输出，避免弹窗打断）
+                console.log("会议已切换为延时无限模式");
             };
 
             const processTurn = async () => {
@@ -515,7 +590,7 @@
                 addMessage(name, humanInput.value);
                 
                 if (speakerIndex.value === allRoles.value.length) {
-                    summaries.value.push({round:currentRound.value, content:humanInput.value, time:new Date().toLocaleTimeString()});
+                    summaries.value.push({round:currentRound.value, content:humanInput.value, time:getCurrentTimestamp()});
                     currentRound.value++; 
                     speakerIndex.value = -1; 
                     setTimeout(() => processTurn(), 800);
@@ -538,7 +613,13 @@
 
             const triggerIntervention = () => {
                 if(!interventionText.value.trim()) return;
-                messages.value.push({role:hostConfig.name + '(插话)', content:interventionText.value, time:new Date().toLocaleTimeString(), isIntervention:true, round:currentRound.value});
+                messages.value.push({
+                    role: hostConfig.name + '(插话)', 
+                    content: interventionText.value, 
+                    time: getCurrentTimestamp(), 
+                    isIntervention: true, 
+                    round: currentRound.value
+                });
                 interventionText.value=''; scrollToBottom();
                 if(!isAiTyping.value && status.value==='running') { 
                     clearTimeout(turnTimer); 
@@ -550,7 +631,7 @@
                 isAiTyping.value=true;
                 const txt = await callLLM("你是书记员", `总结本轮:\n${messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n')}`);
                 addMessage(clerkConfig.name, txt);
-                summaries.value.push({round:currentRound.value, content:txt, time:new Date().toLocaleTimeString()});
+                summaries.value.push({round:currentRound.value, content:txt, time:getCurrentTimestamp()});
                 isAiTyping.value=false; currentRound.value++; speakerIndex.value=-1; 
                 setTimeout(() => processTurn(), 1000);
             };
@@ -578,7 +659,16 @@
                 } catch(e) { return `Error:${e.message}`; }
             };
 
-            const addMessage = (r,c) => { messages.value.push({role:r, content:c, time:new Date().toLocaleTimeString(), round:currentRound.value}); scrollToBottom(); };
+            const addMessage = (r,c) => { 
+                messages.value.push({
+                    role:r, 
+                    content:c, 
+                    time: getCurrentTimestamp(), // Use Full Time
+                    round:currentRound.value
+                }); 
+                scrollToBottom(); 
+            };
+            
             const scrollToBottom = () => nextTick(() => { const c=document.getElementById('chat-container'); if(c) c.scrollTop=c.scrollHeight; });
             const handleFileUpload = async(e) => { for(let f of e.target.files) backgroundFiles.value.push({name:f.name, content:await f.text()}); };
             const removeFile = i => backgroundFiles.value.splice(i,1);
@@ -590,9 +680,9 @@
             return {
                 showSettings, showTalentMarket, isEditing, activeTab, status, paused, topic, apiConfig, settings, talentPool, searchQuery, availableTalents, editForm,
                 customParticipants, messages, summaries, backgroundFiles, currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport,
-                statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig, viewingFile,
+                statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig, viewingFile, isUnlimited, elapsedTime,
                 prepareEdit, cancelEdit, saveTalent, deleteTalent, exportTalentPoolJS, recruitTalent, openFile, downloadCurrentFile,
-                addParticipant, removeParticipant, startMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport
+                addParticipant, removeParticipant, startMeeting, extendMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport
             };
         }
     }).mount('#app');
