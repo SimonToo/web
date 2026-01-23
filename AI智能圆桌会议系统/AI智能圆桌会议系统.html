@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 圆桌会 (可延时版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="talentPool.js"></script>
+    
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        
+        .clerk-bubble { border: 2px solid #8b5cf6; background-color: #f5f3ff; }
+        .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .scale-enter-active, .scale-leave-active { transition: transform 0.2s ease, opacity 0.2s ease; }
+        .scale-enter-from, .scale-leave-to { transform: scale(0.95); opacity: 0; }
+        .list-move, .list-enter-active, .list-leave-active { transition: all 0.3s ease; }
+        .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px); }
+        .list-leave-active { position: absolute; }
+        
+        .intervention-highlight { animation: flash 1s; }
+        @keyframes flash { 0% { background-color: #fee2e2; } 100% { background-color: #fff1f2; } }
+        .mobile-height { height: 100dvh; }
+    </style>
+</head>
+<body class="bg-gray-100 mobile-height overflow-hidden text-sm font-sans text-gray-700">
+
+<div id="app" class="flex flex-col md:flex-row h-full w-full max-w-[1920px] mx-auto relative">
+
+    <transition name="fade">
+        <div v-if="viewingFile" class="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col animate-scale">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
+                    <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-file-lines text-blue-600"></i>
+                        {{ viewingFile.title }}
+                    </h3>
+                    <div class="flex gap-2">
+                        <button @click="downloadCurrentFile" class="w-8 h-8 rounded-full bg-white border hover:bg-blue-50 text-blue-600 transition" title="下载">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button @click="viewingFile = null" class="w-8 h-8 rounded-full bg-white border hover:bg-gray-100 text-gray-500 transition">
+                            <i class="fa-solid fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="prose prose-sm max-w-none text-gray-700" v-html="renderMarkdown(viewingFile.content)"></div>
+                </div>
+                <div class="p-3 border-t bg-gray-50 text-xs text-gray-400 text-center rounded-b-xl shrink-0">
+                    生成时间: {{ viewingFile.time }}
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="fade">
+        <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="font-bold text-gray-800 text-lg"><i class="fa-solid fa-cog mr-2 text-blue-600"></i>系统设置</h3>
+                    <button @click="showSettings = false" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400"><i class="fa-solid fa-times"></i></button>
+                </div>
+                <div class="space-y-4">
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase">AI 模型配置</h4>
+                        <input v-model="apiConfig.baseUrl" type="text" placeholder="Base URL" class="w-full p-2 bg-gray-50 border rounded text-xs">
+                        <input v-model="apiConfig.apiKey" type="password" placeholder="API Key" class="w-full p-2 bg-gray-50 border rounded text-xs">
+                        <input v-model="apiConfig.model" type="text" placeholder="Model" class="w-full p-2 bg-gray-50 border rounded text-xs">
+                    </div>
+                    <div class="flex items-center justify-between">
+                         <label class="text-xs font-bold text-gray-600">会议时长 (分钟)</label>
+                         <input v-model.number="settings.duration" type="number" placeholder="留空即不限时" class="w-24 p-1 border rounded text-center text-xs focus:ring-2 ring-blue-500 outline-none">
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-gray-600 flex items-center gap-1"><i class="fa-solid fa-globe text-blue-500"></i> 联网搜索</label>
+                        <input type="checkbox" v-model="settings.webSearch" class="accent-blue-600 w-4 h-4">
+                    </div>
+                </div>
+                <button @click="showSettings = false" class="w-full bg-blue-600 text-white py-2 rounded text-xs font-bold">完成</button>
+            </div>
+        </div>
+    </transition>
+
+    <transition name="scale">
+        <div v-if="showTalentMarket" class="fixed inset-0 bg-gray-100 z-[60] flex flex-col p-2 md:p-8">
+            <div class="bg-white rounded-2xl shadow-xl flex flex-col h-full max-w-6xl mx-auto w-full overflow-hidden border border-gray-200">
+                <div class="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center"><i class="fa-solid fa-store"></i></span>
+                            人才市场
+                        </h2>
+                        <p class="text-[10px] text-gray-500 mt-0.5 ml-1">管理预设数据，导出后覆盖 talentPool.js 生效</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="exportTalentPoolJS" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
+                            <i class="fa-solid fa-file-export"></i> 导出 JS
+                        </button>
+                        <button @click="showTalentMarket = false" class="w-8 h-8 rounded-full bg-white border hover:bg-gray-100 text-gray-500 transition"><i class="fa-solid fa-times"></i></button>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-white border-b flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                        <input v-model="searchQuery" type="text" class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-xs focus:ring-2 ring-indigo-200 outline-none transition" placeholder="搜索人才...">
+                        <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-times"></i></button>
+                    </div>
+                </div>
+
+                <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+                    <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+                        <div class="mb-4">
+                            <button @click="prepareEdit(null)" class="w-full border-2 border-dashed border-gray-300 rounded-xl p-3 text-gray-400 hover:border-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-2 font-bold text-xs">
+                                <i class="fa-solid fa-plus"></i> 添加新角色模板
+                            </button>
+                        </div>
+                        <transition-group name="list" tag="div" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div v-for="t in availableTalents" :key="t.id" class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition flex flex-col group relative">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">{{ t.name.charAt(0) }}</div>
+                                        <div class="font-bold text-sm text-gray-800">{{ t.name }}</div>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button @click.stop="prepareEdit(t)" class="text-gray-400 hover:text-blue-500 p-1"><i class="fa-solid fa-pen"></i></button>
+                                        <button @click.stop="deleteTalent(t.id)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 p-2 rounded-lg text-[11px] text-gray-600 mb-3 flex-1 overflow-hidden h-16 leading-relaxed">
+                                    {{ t.prompt }}
+                                </div>
+                                <button @click="recruitTalent(t)" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white py-1.5 rounded-lg text-xs font-bold transition active:scale-95">
+                                    <i class="fa-solid fa-user-plus"></i> 聘用
+                                </button>
+                            </div>
+                        </transition-group>
+                    </div>
+
+                    <div class="w-full md:w-80 bg-white border-l border-gray-200 flex flex-col shadow-xl z-10 transition-transform duration-300 absolute inset-0 md:static transform" 
+                         :class="isEditing ? 'translate-x-0' : 'translate-x-full md:translate-x-0 md:block md:w-80' + (!isEditing ? ' md:hidden' : '')">
+                         <div class="p-4 border-b flex justify-between items-center bg-gray-50">
+                            <h3 class="font-bold text-sm text-gray-700">{{ editForm.id ? '编辑' : '新建' }}</h3>
+                            <button @click="cancelEdit" class="text-gray-500 hover:text-gray-800 text-xs">取消</button>
+                        </div>
+                        <div class="p-4 space-y-4 flex-1 overflow-y-auto">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">名称</label>
+                                <input v-model="editForm.name" type="text" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500 outline-none">
+                            </div>
+                            <div class="flex-1 flex flex-col h-full">
+                                <label class="block text-xs font-bold text-gray-500 mb-1">人设 Prompt</label>
+                                <textarea v-model="editForm.prompt" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500 outline-none flex-1 resize-none min-h-[150px]"></textarea>
+                            </div>
+                        </div>
+                        <div class="p-4 border-t bg-gray-50">
+                            <button @click="saveTalent" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-xs font-bold shadow-md transition active:scale-95">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </transition>
+
+    <aside class="flex-col bg-white border-r border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20"
+           :class="activeTab === 'setup' ? 'flex' : 'hidden'">
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
+            <h1 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-users-rectangle mr-2 text-blue-600"></i>圆桌会议</h1>
+            <button @click="showSettings = true" class="text-gray-400 hover:text-blue-600"><i class="fa-solid fa-gear"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-4">
+            <section>
+                <h2 class="text-xs font-bold text-gray-400 uppercase mb-2">议题</h2>
+                <textarea v-model="topic" placeholder="输入议题..." class="w-full p-3 border rounded-xl h-20 text-sm mb-2 focus:ring-2 ring-blue-500 outline-none resize-none bg-gray-50"></textarea>
+                <div class="relative border-2 border-dashed border-gray-300 rounded-xl p-3 text-center cursor-pointer hover:bg-blue-50">
+                    <input type="file" @change="handleFileUpload" class="absolute inset-0 opacity-0" multiple>
+                    <div class="text-gray-500 text-xs font-bold"><i class="fa-solid fa-upload"></i> 上传背景材料</div>
+                </div>
+                <div class="mt-2 space-y-1">
+                    <div v-for="(file, idx) in backgroundFiles" :key="idx" class="flex justify-between items-center text-xs bg-blue-50 text-blue-700 p-2 rounded-lg">
+                        <span class="truncate flex-1 mr-2">{{ file.name }}</span>
+                        <button @click="removeFile(idx)" class="text-red-400">&times;</button>
+                    </div>
+                </div>
+            </section>
+            
+            <section>
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xs font-bold text-gray-400 uppercase">参会人员</h2>
+                    <div class="flex gap-2">
+                        <button @click="showTalentMarket = true" class="bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 px-2 py-1 rounded text-xs font-bold transition flex items-center gap-1">
+                            <i class="fa-solid fa-store"></i> 人才库
+                        </button>
+                        <button @click="addParticipant" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs"><i class="fa-solid fa-plus"></i></button>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-xs text-yellow-800"><i class="fa-solid fa-microphone mr-1"></i>主持人</span>
+                            <span class="text-[10px] bg-yellow-200 px-1.5 rounded text-yellow-800">控场</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-gray-500 font-bold">MODE</span>
+                            <select v-model="hostConfig.type" class="text-[10px] border rounded bg-white px-1 py-0.5 outline-none">
+                                <option value="ai">AI 托管</option>
+                                <option value="human">人工扮演</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-purple-50 border border-purple-200 rounded-lg flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-xs text-purple-800"><i class="fa-solid fa-pen-nib mr-1"></i>书记员</span>
+                            <span class="text-[10px] bg-purple-200 px-1.5 rounded text-purple-800">记录</span>
+                        </div>
+                         <div class="flex justify-between items-center">
+                            <span class="text-[10px] text-gray-500 font-bold">MODE</span>
+                            <select v-model="clerkConfig.type" class="text-[10px] border rounded bg-white px-1 py-0.5 outline-none">
+                                <option value="ai">AI 托管</option>
+                                <option value="human">人工扮演</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <transition-group name="list">
+                        <div v-for="(p, index) in customParticipants" :key="p.tempId || index" class="p-3 border rounded-xl relative group bg-white shadow-sm hover:shadow-md transition">
+                            <button @click="removeParticipant(index)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button>
+                            <div class="flex items-center gap-2 mb-2 pr-6">
+                                <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">{{ p.name.charAt(0) }}</div>
+                                <input v-model="p.name" class="font-bold text-sm border-b border-transparent hover:border-gray-300 w-full outline-none">
+                            </div>
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[10px] text-gray-400 font-bold">MODE</span>
+                                <select v-model="p.type" class="text-[10px] border rounded bg-gray-50"><option value="ai">AI</option><option value="human">人工</option></select>
+                            </div>
+                            <textarea v-model="p.prompt" class="w-full text-xs text-gray-600 border p-2 rounded-lg h-12 resize-none bg-gray-50 focus:bg-white outline-none" placeholder="设定人设..."></textarea>
+                        </div>
+                    </transition-group>
+                </div>
+            </section>
+        </div>
+    </aside>
+
+    <main class="flex-col bg-slate-50 relative h-full w-full md:w-1/2 md:flex" :class="activeTab === 'chat' ? 'flex' : 'hidden'">
+        <header class="h-14 border-b flex items-center justify-between px-4 bg-white shadow-sm shrink-0">
+            <div class="flex items-center gap-2">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold" :class="statusColor">{{ statusText }}</span>
+                <span class="text-xs text-gray-500">第 <span class="font-bold">{{ currentRound }}</span> 轮</span>
+            </div>
+            
+            <div class="font-mono text-lg font-bold text-gray-700 tabular-nums">
+                <div v-if="isUnlimited" class="flex items-center gap-1 text-blue-600 animate-pulse">
+                    <i class="fa-solid fa-stopwatch text-xs"></i>
+                    <span>{{ formatTime(elapsedTime) }}</span>
+                </div>
+                <div v-else :class="{'text-red-500': timeLeft < 60}">
+                    <span>{{ formatTime(timeLeft) }}</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-6 scroll-smooth">
+            <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
+                <i class="fa-solid fa-comments text-4xl text-gray-200 mb-4"></i>
+                <p class="text-sm text-gray-500">已就绪。仅主持人和书记员在场。</p>
+                <button v-if="status === 'setup'" @click="startMeeting" class="md:hidden bg-blue-600 text-white px-8 py-2 rounded-full shadow-lg font-bold mt-4">开始</button>
+            </div>
+            
+            <div v-for="(msg, index) in messages" :key="index" class="flex flex-col group animate-fade-in">
+                <div v-if="msg.role === '书记员'" class="mx-auto w-[95%] clerk-bubble rounded-xl p-4 shadow-sm text-xs">
+                    <div class="text-purple-700 font-bold mb-2 border-b border-purple-200 pb-1 flex justify-between">
+                         <span>书记员总结</span>
+                         <span class="font-normal opacity-60 text-[10px]">{{ msg.time }}</span>
+                    </div>
+                    <div class="prose prose-sm prose-purple max-w-none" v-html="renderMarkdown(msg.content)"></div>
+                </div>
+                <div v-else-if="msg.isSearchAction" class="text-xs text-blue-500 ml-4 mb-2 italic"><i class="fa-solid fa-search fa-spin"></i> 正在搜索...</div>
+                <div v-else class="flex flex-col gap-1 max-w-[90%]" :class="msg.role.includes('主持人') ? 'self-center w-full' : 'self-start'">
+                    <div class="text-[10px] text-gray-500 px-1 flex items-center gap-2 mb-0.5" :class="{'justify-center': msg.role.includes('主持人')}">
+                        <span class="font-bold text-gray-700">{{ msg.role }}</span>
+                        <span class="font-mono text-gray-400 text-[9px]">{{ msg.time }}</span>
+                    </div>
+                    <div class="p-3.5 rounded-2xl shadow-sm text-sm border" :class="[msg.role.includes('主持人') ? 'bg-orange-50 text-center' : 'bg-white', msg.isIntervention ? 'ring-2 ring-red-400 bg-red-50' : '']">
+                        <div class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div v-if="isAiTyping" class="flex items-center gap-2 text-gray-400 text-xs ml-4"><span class="font-bold">{{ currentSpeakerName }}</span> 正在输入...</div>
+        </div>
+
+        <footer class="p-3 md:p-4 border-t bg-white z-20 shrink-0 pb-20 md:pb-4">
+            <div v-if="status === 'setup' || status === 'finished'" class="flex justify-center">
+                <button @click="startMeeting" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl shadow-lg font-bold"><i class="fa-solid fa-play"></i> {{ status==='setup'?'启动会议':'重启会议' }}</button>
+            </div>
+            <div v-else class="flex flex-col gap-3">
+                <div v-if="waitingForHuman" class="flex gap-2 bg-green-50 p-2 rounded-xl border border-green-200 items-center shadow-inner">
+                    <span class="text-xs font-bold text-green-700 px-2 py-1 bg-green-200 rounded whitespace-nowrap">
+                        轮到: {{ currentSpeakerName }}
+                    </span>
+                    <input v-model="humanInput" @keyup.enter="submitHumanInput" class="flex-1 text-sm bg-transparent outline-none placeholder-green-700/30" :placeholder="`请以 ${currentSpeakerName} 身份发言...`">
+                    <button @click="submitHumanInput" class="text-green-600"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+                <div v-else class="flex gap-2 items-center">
+                     <input v-model="interventionText" @keyup.enter="triggerIntervention" class="flex-1 border rounded-full px-4 py-2 text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 ring-red-100" placeholder="强制插话...">
+                     <button @click="triggerIntervention" class="bg-white text-red-500 border border-red-200 px-4 py-2 rounded-full text-xs font-bold">插话</button>
+                </div>
+                
+                <div class="flex justify-between items-center border-t pt-2">
+                    <div class="flex gap-2">
+                        <button @click="togglePause" class="text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid" :class="paused ? 'fa-play' : 'fa-pause'"></i> 
+                            {{ paused?'继续':'暂停' }}
+                        </button>
+                        
+                        <button v-if="!isUnlimited" @click="extendMeeting" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-200 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid fa-clock-rotate-left"></i> 延时
+                        </button>
+                        
+                        <button @click="endMeeting" class="text-xs bg-gray-100 hover:bg-red-50 hover:text-red-500 px-3 py-1.5 rounded transition flex items-center gap-1">
+                            <i class="fa-solid fa-stop"></i> 结束
+                        </button>
+                    </div>
+                    <div class="text-[10px] text-gray-400 hidden sm:block">Current: {{ currentSpeakerName }}</div>
+                </div>
+            </div>
+        </footer>
+    </main>
+
+    <aside class="flex-col bg-white border-l border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20" :class="activeTab === 'board' ? 'flex' : 'hidden'">
+        <div class="p-4 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+            <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wider"><i class="fa-solid fa-folder-open mr-2 text-purple-600"></i>会议文件</h3>
+            <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 bg-white pb-20 md:pb-4">
+            <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport)" class="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md transition group">
+                 <div class="flex items-center gap-3">
+                     <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                         <i class="fa-solid fa-file-contract text-lg"></i>
+                     </div>
+                     <div class="flex-1">
+                         <h4 class="text-sm font-bold text-green-800">最终会议纪要</h4>
+                         <p class="text-[10px] text-gray-500">点击查看完整报告</p>
+                     </div>
+                     <i class="fa-solid fa-chevron-right text-green-300 group-hover:text-green-500"></i>
+                 </div>
+            </div>
+
+            <div class="space-y-2">
+                <div v-for="(summary, idx) in summaries" :key="idx" @click="openFile(`第 ${summary.round} 轮小结`, summary.content, summary.time)" class="bg-gray-50 border border-gray-100 rounded-xl p-3 cursor-pointer hover:bg-white hover:border-blue-200 hover:shadow-sm transition flex items-center gap-3 group">
+                    <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-400 group-hover:text-purple-600 group-hover:bg-purple-100 transition">
+                         <i class="fa-solid fa-file-lines"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-gray-700">第 {{ summary.round }} 轮会议小结</span>
+                            <span class="text-[10px] text-gray-400">{{ summary.time }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="summaries.length === 0 && !finalReport" class="flex flex-col items-center justify-center h-64 text-gray-300">
+                <i class="fa-regular fa-folder-open text-4xl mb-2"></i>
+                <p class="text-xs">暂无文件生成</p>
+            </div>
+        </div>
+    </aside>
+
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t flex justify-around items-center h-16 z-50 pb-safe">
+        <button @click="activeTab='setup'" class="flex flex-col items-center w-1/3" :class="activeTab==='setup'?'text-blue-600':'text-gray-400'"><i class="fa-solid fa-sliders"></i><span class="text-[10px]">配置</span></button>
+        <button @click="activeTab='chat'" class="flex flex-col items-center w-1/3" :class="activeTab==='chat'?'text-blue-600':'text-gray-400'"><i class="fa-solid fa-comments"></i><span class="text-[10px]">会议</span></button>
+        <button @click="activeTab='board'" class="flex flex-col items-center w-1/3" :class="activeTab==='board'?'text-blue-600':'text-gray-400'"><i class="fa-solid fa-clipboard-list"></i><span class="text-[10px]">白板</span></button>
+    </nav>
+</div>
+
+<script>
+    const { createApp, ref, computed, reactive, nextTick, watch, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            // UI
+            const showSettings = ref(false), showTalentMarket = ref(false), isEditing = ref(false);
+            const activeTab = ref('setup'), status = ref('setup'), paused = ref(false);
+            const topic = ref('如何利用生成式 AI 优化企业内部知识管理？'), searchQuery = ref('');
+            
+            // Viewer
+            const viewingFile = ref(null);
+            const openFile = (title, content, time) => { viewingFile.value = { title, content, time }; };
+            const downloadCurrentFile = () => {
+                if(!viewingFile.value) return;
+                const blob = new Blob([viewingFile.value.content], {type: 'text/markdown'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); 
+                a.download = `${viewingFile.value.title}.md`; a.click();
+            };
+
+            // Helper: Generate Full Timestamp (YYYY/MM/DD HH:mm:ss)
+            const getCurrentTimestamp = () => {
+                const now = new Date();
+                const pad = n => n.toString().padStart(2, '0');
+                return `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            };
+
+            // Config - Default 10 minutes
+            const apiConfig = reactive({ baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' });
+            const settings = reactive({ duration: 10, webSearch: false });
+            
+            // Data
+            const talentPool = ref([]);
+            const customParticipants = ref([]);
+            const hostConfig = reactive({ name: '主持人', type: 'ai' });
+            const clerkConfig = reactive({ name: '书记员', type: 'ai' });
+            const editForm = reactive({ id: null, name: '', prompt: '' });
+
+            const availableTalents = computed(() => {
+                if (!talentPool.value) return [];
+                const recruitedNames = new Set(customParticipants.value.map(p => p.name));
+                return talentPool.value.filter(talent => {
+                    if (recruitedNames.has(talent.name)) return false;
+                    if (searchQuery.value) {
+                        const q = searchQuery.value.toLowerCase();
+                        return talent.name.toLowerCase().includes(q) || talent.prompt.toLowerCase().includes(q);
+                    }
+                    return true;
+                });
+            });
+
+            onMounted(() => {
+                if (typeof window.TALENT_POOL !== 'undefined' && Array.isArray(window.TALENT_POOL)) talentPool.value = window.TALENT_POOL;
+                else talentPool.value = [];
+            });
+
+            // Logic
+            const prepareEdit = (t) => { isEditing.value = true; Object.assign(editForm, t ? t : { id: null, name: '', prompt: '' }); };
+            const cancelEdit = () => { isEditing.value = false; editForm.id = null; };
+            const saveTalent = () => {
+                if (!editForm.name || !editForm.prompt) return alert('请填写完整信息');
+                if (editForm.id) {
+                    const idx = talentPool.value.findIndex(t => t.id === editForm.id);
+                    if (idx !== -1) Object.assign(talentPool.value[idx], editForm);
+                } else {
+                    talentPool.value.push({ ...editForm, id: Date.now() });
+                }
+                cancelEdit();
+            };
+            const deleteTalent = (id) => { if(confirm('确认删除?')) talentPool.value = talentPool.value.filter(t => t.id !== id); };
+            const exportTalentPoolJS = () => {
+                const b = new Blob([`window.TALENT_POOL = ${JSON.stringify(talentPool.value, null, 4)};`], { type: 'application/javascript' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'talentPool.js'; a.click();
+            };
+            const recruitTalent = (t) => {
+                customParticipants.value.push({ name: t.name, prompt: t.prompt, type: 'ai', tempId: Date.now() });
+                if (window.innerWidth < 768) showTalentMarket.value = false;
+            };
+
+            const removeParticipant = i => customParticipants.value.splice(i, 1);
+            const addParticipant = () => customParticipants.value.push({ name: '新角色', type: 'ai', prompt: '', tempId: Date.now() });
+
+            // Runtime
+            const messages = ref([]), summaries = ref([]), backgroundFiles = ref([]);
+            const currentRound = ref(1), speakerIndex = ref(-1), finalReport = ref(null);
+            const isAiTyping = ref(false), humanInput = ref(''), interventionText = ref('');
+            
+            // Time Logic
+            const timeLeft = ref(null); 
+            const isUnlimited = ref(false); 
+            const elapsedTime = ref(0);     
+            
+            let timerInterval = null, turnTimer = null;
+
+            const allRoles = computed(() => customParticipants.value);
+            const currentSpeakerName = computed(() => {
+                if (speakerIndex.value === -1) return hostConfig.name;
+                if (speakerIndex.value === allRoles.value.length) return clerkConfig.name;
+                return allRoles.value[speakerIndex.value]?.name || '未知';
+            });
+            
+            const waitingForHuman = computed(() => {
+                if (paused.value || status.value !== 'running') return false;
+                if (speakerIndex.value === -1) return hostConfig.type === 'human';
+                if (speakerIndex.value === allRoles.value.length) return clerkConfig.type === 'human';
+                if (speakerIndex.value >= 0 && speakerIndex.value < allRoles.value.length) return allRoles.value[speakerIndex.value].type === 'human';
+                return false;
+            });
+
+            const statusText = computed(() => paused.value ? '暂停' : (status.value === 'running' ? '进行中' : '设置中'));
+            const statusColor = computed(() => paused.value ? 'bg-yellow-100 text-yellow-700' : (status.value === 'running' ? 'bg-green-100 text-green-700 animate-pulse' : 'bg-blue-100 text-blue-700'));
+            
+            watch(status, v => { if(v==='running') activeTab.value='chat'; });
+
+            const startMeeting = () => {
+                if (!topic.value.trim()) return alert("请输入议题");
+                showSettings.value = false; status.value = 'running'; paused.value = false;
+                
+                // Initialize Time Logic
+                if (!settings.duration || settings.duration <= 0) {
+                    isUnlimited.value = true;
+                    elapsedTime.value = 0;
+                    timeLeft.value = null;
+                } else {
+                    isUnlimited.value = false;
+                    timeLeft.value = settings.duration * 60;
+                }
+
+                messages.value = []; summaries.value = [];
+                finalReport.value = null; currentRound.value = 1; activeTab.value = 'chat';
+                
+                if (timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(() => { 
+                    if (!paused.value && status.value === 'running') {
+                        if (isUnlimited.value) {
+                            elapsedTime.value++;
+                        } else {
+                            timeLeft.value--; 
+                            if (timeLeft.value <= 0) endMeeting();
+                        }
+                    } 
+                }, 1000);
+                
+                speakerIndex.value = -1; 
+                processTurn();
+            };
+
+            // 核心功能：延时 (Extend Meeting)
+            const extendMeeting = () => {
+                if (isUnlimited.value) return; 
+                
+                // 计算当前已消耗时间：总设定时间 - 剩余时间
+                const totalSeconds = settings.duration * 60;
+                const currentLeft = timeLeft.value || 0;
+                elapsedTime.value = totalSeconds - currentLeft;
+
+                // 切换模式
+                isUnlimited.value = true;
+                timeLeft.value = null;
+                
+                // 视觉反馈（可选，这里只在控制台输出，避免弹窗打断）
+                console.log("会议已切换为延时无限模式");
+            };
+
+            const processTurn = async () => {
+                if (status.value !== 'running' || paused.value) return;
+
+                if (speakerIndex.value === -1) {
+                    if (hostConfig.type === 'human') return; 
+                    const content = currentRound.value === 1 ? `会议正式开始。议题：${topic.value}。` : `第 ${currentRound.value} 轮讨论开始。`;
+                    addMessage(hostConfig.name, content, true);
+                    nextTurn();
+                    return;
+                }
+
+                if (speakerIndex.value === allRoles.value.length) {
+                    if (clerkConfig.type === 'human') return; 
+                    await performClerkSummary();
+                    return;
+                }
+
+                const role = allRoles.value[speakerIndex.value];
+                if (role.type === 'human') return; 
+                isAiTyping.value = true; scrollToBottom();
+                await generateAIResponse(role);
+                isAiTyping.value = false; nextTurn();
+            };
+
+            const nextTurn = () => { 
+                speakerIndex.value++; 
+                turnTimer = setTimeout(() => processTurn(), 800); 
+            };
+
+            const submitHumanInput = () => {
+                if(!humanInput.value.trim()) return;
+                let name = '';
+                if(speakerIndex.value === -1) name = hostConfig.name;
+                else if(speakerIndex.value === allRoles.value.length) name = clerkConfig.name;
+                else name = allRoles.value[speakerIndex.value].name;
+                
+                addMessage(name, humanInput.value);
+                
+                if (speakerIndex.value === allRoles.value.length) {
+                    summaries.value.push({round:currentRound.value, content:humanInput.value, time:getCurrentTimestamp()});
+                    currentRound.value++; 
+                    speakerIndex.value = -1; 
+                    setTimeout(() => processTurn(), 800);
+                } else {
+                    nextTurn();
+                }
+                humanInput.value = '';
+            };
+
+            const generateAIResponse = async (role) => {
+                const sys = `角色:${role.name}。人设:${role.prompt}。议题:${topic.value}。材料:${backgroundFiles.value.map(f=>f.content).join('\n').substring(0,800)}...`;
+                const last = summaries.value.length > 0 ? summaries.value[summaries.value.length-1].content : "无";
+                const log = messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n');
+                let user = `[上一轮]:${last}\n[本轮]:${log}\n请发言。`;
+                if (messages.value.length > 0 && messages.value[messages.value.length-1].isIntervention) user += `\n!!! 紧急：回应主持人插话 !!!`;
+                if (settings.webSearch && Math.random()>0.7 && !apiConfig.apiKey) { messages.value.push({role:role.name, content:'', isSearchAction:true, round:currentRound.value}); await new Promise(r=>setTimeout(r,1000)); }
+                const txt = await callLLM(sys, user);
+                addMessage(role.name, txt);
+            };
+
+            const triggerIntervention = () => {
+                if(!interventionText.value.trim()) return;
+                messages.value.push({
+                    role: hostConfig.name + '(插话)', 
+                    content: interventionText.value, 
+                    time: getCurrentTimestamp(), 
+                    isIntervention: true, 
+                    round: currentRound.value
+                });
+                interventionText.value=''; scrollToBottom();
+                if(!isAiTyping.value && status.value==='running') { 
+                    clearTimeout(turnTimer); 
+                    if(speakerIndex.value>=0 && speakerIndex.value<allRoles.value.length && allRoles.value[speakerIndex.value].type === 'ai') processTurn(); 
+                }
+            };
+
+            const performClerkSummary = async () => {
+                isAiTyping.value=true;
+                const txt = await callLLM("你是书记员", `总结本轮:\n${messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n')}`);
+                addMessage(clerkConfig.name, txt);
+                summaries.value.push({round:currentRound.value, content:txt, time:getCurrentTimestamp()});
+                isAiTyping.value=false; currentRound.value++; speakerIndex.value=-1; 
+                setTimeout(() => processTurn(), 1000);
+            };
+
+            const endMeeting = async () => {
+                if(status.value==='finished') return; paused.value=true; status.value='finished'; clearInterval(timerInterval); clearTimeout(turnTimer);
+                isAiTyping.value=true; addMessage(hostConfig.name, '会议结束，生成最终纪要...', true);
+                finalReport.value = await callLLM("秘书", `生成Markdown纪要:\n${summaries.value.map(s=>`R${s.round}:${s.content}`).join('\n')}`);
+                isAiTyping.value=false; if(window.innerWidth<768) setTimeout(()=>alert("请查看白板"),500);
+            };
+
+            const callLLM = async (sys, usr) => {
+                if(!apiConfig.apiKey) return new Promise(r=>setTimeout(()=>{
+                    if(usr.includes("紧急")) r("收到。我认为...");
+                    else if(sys.includes("书记员")) r(`**本轮小结**：讨论了${topic.value}。`);
+                    else if(usr.includes("生成Markdown")) r(`# 会议纪要\n达成一致。`);
+                    else r(["风险太大了。","我同意。","成本是个问题。"][Math.floor(Math.random()*3)]);
+                },1000));
+                try {
+                    const res = await fetch(`${apiConfig.baseUrl||'https://api.openai.com/v1'}/chat/completions`, {
+                        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiConfig.apiKey}`},
+                        body:JSON.stringify({model:apiConfig.model, messages:[{role:'system',content:sys},{role:'user',content:usr}], temperature:0.7})
+                    });
+                    const d=await res.json(); return d.choices[0].message.content;
+                } catch(e) { return `Error:${e.message}`; }
+            };
+
+            const addMessage = (r,c) => { 
+                messages.value.push({
+                    role:r, 
+                    content:c, 
+                    time: getCurrentTimestamp(), // Use Full Time
+                    round:currentRound.value
+                }); 
+                scrollToBottom(); 
+            };
+            
+            const scrollToBottom = () => nextTick(() => { const c=document.getElementById('chat-container'); if(c) c.scrollTop=c.scrollHeight; });
+            const handleFileUpload = async(e) => { for(let f of e.target.files) backgroundFiles.value.push({name:f.name, content:await f.text()}); };
+            const removeFile = i => backgroundFiles.value.splice(i,1);
+            const togglePause = () => { paused.value=!paused.value; if(!paused.value && status.value==='running' && !waitingForHuman.value) processTurn(); };
+            const formatTime = s => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+            const renderMarkdown = t => marked.parse(t);
+            const exportReport = () => { if(!finalReport.value) return; const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([finalReport.value],{type:'text/markdown'})); a.download='Report.md'; a.click(); };
+
+            return {
+                showSettings, showTalentMarket, isEditing, activeTab, status, paused, topic, apiConfig, settings, talentPool, searchQuery, availableTalents, editForm,
+                customParticipants, messages, summaries, backgroundFiles, currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport,
+                statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig, viewingFile, isUnlimited, elapsedTime,
+                prepareEdit, cancelEdit, saveTalent, deleteTalent, exportTalentPoolJS, recruitTalent, openFile, downloadCurrentFile,
+                addParticipant, removeParticipant, startMeeting, extendMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
