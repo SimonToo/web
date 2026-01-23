@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 圆桌会 (自由角色版)</title>
+    <title>AI 圆桌会 (目录白板版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -37,6 +37,33 @@
 <body class="bg-gray-100 mobile-height overflow-hidden text-sm font-sans text-gray-700">
 
 <div id="app" class="flex flex-col md:flex-row h-full w-full max-w-[1920px] mx-auto relative">
+
+    <transition name="fade">
+        <div v-if="viewingFile" class="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[80vh] flex flex-col animate-scale">
+                <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-xl shrink-0">
+                    <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-file-lines text-blue-600"></i>
+                        {{ viewingFile.title }}
+                    </h3>
+                    <div class="flex gap-2">
+                        <button @click="downloadCurrentFile" class="w-8 h-8 rounded-full bg-white border hover:bg-blue-50 text-blue-600 transition" title="下载此文件">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button @click="viewingFile = null" class="w-8 h-8 rounded-full bg-white border hover:bg-gray-100 text-gray-500 transition">
+                            <i class="fa-solid fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6">
+                    <div class="prose prose-sm max-w-none text-gray-700" v-html="renderMarkdown(viewingFile.content)"></div>
+                </div>
+                <div class="p-3 border-t bg-gray-50 text-xs text-gray-400 text-center rounded-b-xl shrink-0">
+                    生成时间: {{ viewingFile.time }}
+                </div>
+            </div>
+        </div>
+    </transition>
 
     <transition name="fade">
         <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
@@ -289,16 +316,41 @@
     </main>
 
     <aside class="flex-col bg-white border-l border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20" :class="activeTab === 'board' ? 'flex' : 'hidden'">
-        <div class="p-4 border-b bg-gray-50"><h3 class="font-bold text-gray-700 text-xs">实时白板</h3></div>
-        <div class="flex-1 overflow-y-auto p-4 space-y-4 pb-20 md:pb-4">
-            <div v-if="finalReport" class="p-4 bg-green-50 border border-green-200 rounded-xl text-xs">
-                <h4 class="font-bold text-green-800 mb-2">会议纪要</h4>
-                <div class="prose prose-xs prose-green" v-html="renderMarkdown(finalReport)"></div>
-                <button @click="exportReport" class="mt-2 w-full border border-green-300 text-green-700 py-1 rounded">导出</button>
+        <div class="p-4 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+            <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wider"><i class="fa-solid fa-folder-open mr-2 text-purple-600"></i>会议文件</h3>
+            <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
+        </div>
+        <div class="flex-1 overflow-y-auto p-4 bg-white pb-20 md:pb-4">
+             <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport)" class="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md transition group">
+                 <div class="flex items-center gap-3">
+                     <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                         <i class="fa-solid fa-file-contract text-lg"></i>
+                     </div>
+                     <div class="flex-1">
+                         <h4 class="text-sm font-bold text-green-800">最终会议纪要</h4>
+                         <p class="text-[10px] text-gray-500">点击查看完整报告</p>
+                     </div>
+                     <i class="fa-solid fa-chevron-right text-green-300 group-hover:text-green-500"></i>
+                 </div>
             </div>
-            <div v-for="(s, idx) in summaries" :key="idx" class="p-3 bg-gray-50 border rounded-xl text-xs">
-                <div class="font-bold text-gray-500 mb-1">Round {{ s.round }}</div>
-                <div class="prose prose-xs" v-html="renderMarkdown(s.content)"></div>
+
+            <div class="space-y-2">
+                <div v-for="(summary, idx) in summaries" :key="idx" @click="openFile(`第 ${summary.round} 轮小结`, summary.content, summary.time)" class="bg-gray-50 border border-gray-100 rounded-xl p-3 cursor-pointer hover:bg-white hover:border-blue-200 hover:shadow-sm transition flex items-center gap-3 group">
+                    <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-400 group-hover:text-purple-600 group-hover:bg-purple-100 transition">
+                         <i class="fa-solid fa-file-lines"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-gray-700">第 {{ summary.round }} 轮会议小结</span>
+                            <span class="text-[10px] text-gray-400">{{ summary.time }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="summaries.length === 0 && !finalReport" class="flex flex-col items-center justify-center h-64 text-gray-300">
+                <i class="fa-regular fa-folder-open text-4xl mb-2"></i>
+                <p class="text-xs">暂无文件生成</p>
             </div>
         </div>
     </aside>
@@ -320,18 +372,25 @@
             const activeTab = ref('setup'), status = ref('setup'), paused = ref(false);
             const topic = ref('如何利用生成式 AI 优化企业内部知识管理？'), searchQuery = ref('');
             
+            // Viewer State
+            const viewingFile = ref(null);
+            const openFile = (title, content, time = new Date().toLocaleTimeString()) => { viewingFile.value = { title, content, time }; };
+            const downloadCurrentFile = () => {
+                if(!viewingFile.value) return;
+                const blob = new Blob([viewingFile.value.content], {type: 'text/markdown'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); 
+                a.download = `${viewingFile.value.title}.md`; a.click();
+            };
+
             // Config
             const apiConfig = reactive({ baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' });
             const settings = reactive({ duration: 30, webSearch: false });
             
-            // Core Data
+            // Data
             const talentPool = ref([]);
-            const customParticipants = ref([]); // 初始为空
-            
-            // Host & Clerk Config (Modified for Type Switching)
+            const customParticipants = ref([]); // Start empty
             const hostConfig = reactive({ name: '主持人', type: 'ai' });
             const clerkConfig = reactive({ name: '书记员', type: 'ai' });
-
             const editForm = reactive({ id: null, name: '', prompt: '' });
 
             const availableTalents = computed(() => {
@@ -350,10 +409,9 @@
             onMounted(() => {
                 if (typeof window.TALENT_POOL !== 'undefined' && Array.isArray(window.TALENT_POOL)) talentPool.value = window.TALENT_POOL;
                 else talentPool.value = [];
-                // Not adding any default custom participants per requirement
             });
 
-            // CMS & Market Logic
+            // Logic
             const prepareEdit = (t) => { isEditing.value = true; Object.assign(editForm, t ? t : { id: null, name: '', prompt: '' }); };
             const cancelEdit = () => { isEditing.value = false; editForm.id = null; };
             const saveTalent = () => {
@@ -393,7 +451,6 @@
                 return allRoles.value[speakerIndex.value]?.name || '未知';
             });
             
-            // Updated Waiting Logic to support Host/Clerk
             const waitingForHuman = computed(() => {
                 if (paused.value || status.value !== 'running') return false;
                 if (speakerIndex.value === -1) return hostConfig.type === 'human';
@@ -415,7 +472,6 @@
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(() => { if (!paused.value && status.value === 'running') { timeLeft.value--; if (timeLeft.value <= 0) endMeeting(); } }, 1000);
                 
-                // Start Logic: Point to Host (-1)
                 speakerIndex.value = -1; 
                 processTurn();
             };
@@ -423,25 +479,22 @@
             const processTurn = async () => {
                 if (status.value !== 'running' || paused.value) return;
 
-                // 1. Host Turn
                 if (speakerIndex.value === -1) {
-                    if (hostConfig.type === 'human') return; // Wait
+                    if (hostConfig.type === 'human') return; 
                     const content = currentRound.value === 1 ? `会议正式开始。议题：${topic.value}。` : `第 ${currentRound.value} 轮讨论开始。`;
                     addMessage(hostConfig.name, content, true);
                     nextTurn();
                     return;
                 }
 
-                // 2. Clerk Turn
                 if (speakerIndex.value === allRoles.value.length) {
-                    if (clerkConfig.type === 'human') return; // Wait
+                    if (clerkConfig.type === 'human') return; 
                     await performClerkSummary();
                     return;
                 }
 
-                // 3. Participant Turn
                 const role = allRoles.value[speakerIndex.value];
-                if (role.type === 'human') return; // Wait
+                if (role.type === 'human') return; 
                 isAiTyping.value = true; scrollToBottom();
                 await generateAIResponse(role);
                 isAiTyping.value = false; nextTurn();
@@ -454,8 +507,6 @@
 
             const submitHumanInput = () => {
                 if(!humanInput.value.trim()) return;
-                
-                // Determine who is speaking based on index
                 let name = '';
                 if(speakerIndex.value === -1) name = hostConfig.name;
                 else if(speakerIndex.value === allRoles.value.length) name = clerkConfig.name;
@@ -463,11 +514,10 @@
                 
                 addMessage(name, humanInput.value);
                 
-                // If it was Clerk (human), finish the round logic
                 if (speakerIndex.value === allRoles.value.length) {
                     summaries.value.push({round:currentRound.value, content:humanInput.value, time:new Date().toLocaleTimeString()});
                     currentRound.value++; 
-                    speakerIndex.value = -1; // Back to host
+                    speakerIndex.value = -1; 
                     setTimeout(() => processTurn(), 800);
                 } else {
                     nextTurn();
@@ -492,8 +542,6 @@
                 interventionText.value=''; scrollToBottom();
                 if(!isAiTyping.value && status.value==='running') { 
                     clearTimeout(turnTimer); 
-                    // If stuck on AI, force move, but if currently on Human, stays on Human? 
-                    // Logic: Interventions force AI to react. If current is Human, Human sees it and reacts.
                     if(speakerIndex.value>=0 && speakerIndex.value<allRoles.value.length && allRoles.value[speakerIndex.value].type === 'ai') processTurn(); 
                 }
             };
@@ -504,7 +552,7 @@
                 addMessage(clerkConfig.name, txt);
                 summaries.value.push({round:currentRound.value, content:txt, time:new Date().toLocaleTimeString()});
                 isAiTyping.value=false; currentRound.value++; speakerIndex.value=-1; 
-                setTimeout(() => processTurn(), 1000); // Back to Host
+                setTimeout(() => processTurn(), 1000);
             };
 
             const endMeeting = async () => {
@@ -542,8 +590,8 @@
             return {
                 showSettings, showTalentMarket, isEditing, activeTab, status, paused, topic, apiConfig, settings, talentPool, searchQuery, availableTalents, editForm,
                 customParticipants, messages, summaries, backgroundFiles, currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport,
-                statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig,
-                prepareEdit, cancelEdit, saveTalent, deleteTalent, exportTalentPoolJS, recruitTalent,
+                statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig, viewingFile,
+                prepareEdit, cancelEdit, saveTalent, deleteTalent, exportTalentPoolJS, recruitTalent, openFile, downloadCurrentFile,
                 addParticipant, removeParticipant, startMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport
             };
         }
