@@ -2,324 +2,343 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 智能圆桌会议系统 (插话修复版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 智能圆桌会议系统 (移动适配版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <style>
+        /* 基础设置 */
+        body { -webkit-tap-highlight-color: transparent; }
+        
         /* 滚动条美化 */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
+        /* 动画效果 */
         .clerk-bubble { border: 2px solid #8b5cf6; background-color: #f5f3ff; }
-        
         .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
-        @keyframes typing {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
-        }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
         
-        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
-        .modal-enter-from, .modal-leave-to { opacity: 0; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
         
-        /* 插话高亮动画 */
+        /* 插话高亮 */
         .intervention-highlight { animation: flash 1s; }
-        @keyframes flash {
-            0% { background-color: #fee2e2; }
-            100% { background-color: #fff1f2; }
-        }
+        @keyframes flash { 0% { background-color: #fee2e2; } 100% { background-color: #fff1f2; } }
+
+        /* 移动端特定优化 */
+        .mobile-height { height: 100dvh; } /* 解决移动端地址栏问题 */
     </style>
 </head>
-<body class="bg-gray-100 h-screen overflow-hidden text-sm font-sans">
+<body class="bg-gray-100 mobile-height overflow-hidden text-sm font-sans text-gray-700">
 
-<div id="app" class="flex h-full">
+<div id="app" class="flex flex-col md:flex-row h-full w-full max-w-[1920px] mx-auto relative">
 
-    <transition name="modal">
-        <div v-if="showSettings" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-            <div class="bg-white rounded-lg shadow-xl w-96 p-6 space-y-4">
-                <div class="flex justify-between items-center border-b pb-2">
-                    <h3 class="font-bold text-gray-700 text-lg"><i class="fa-solid fa-cog mr-2"></i>系统设置</h3>
-                    <button @click="showSettings = false" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-times"></i></button>
+    <transition name="fade">
+        <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 space-y-4 animate-fade-in">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <h3 class="font-bold text-gray-800 text-lg"><i class="fa-solid fa-cog mr-2 text-blue-600"></i>系统设置</h3>
+                    <button @click="showSettings = false" class="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500"><i class="fa-solid fa-times"></i></button>
                 </div>
                 
-                <div class="space-y-3">
-                    <h4 class="text-xs font-bold text-gray-400 uppercase">AI 模型配置</h4>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">Base URL</label>
-                        <input v-model="apiConfig.baseUrl" type="text" placeholder="默认: https://api.openai.com/v1" class="w-full p-2 border rounded text-xs focus:ring-2 ring-blue-500 outline-none">
+                <div class="space-y-4 overflow-y-auto max-h-[60vh]">
+                    <div class="space-y-2">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">AI 模型配置</h4>
+                        <input v-model="apiConfig.baseUrl" type="text" placeholder="Base URL (默认: openai.com)" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm focus:ring-2 ring-blue-500 outline-none transition">
+                        <input v-model="apiConfig.apiKey" type="password" placeholder="API Key (留空使用模拟演示)" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm focus:ring-2 ring-blue-500 outline-none transition">
+                        <input v-model="apiConfig.model" type="text" placeholder="模型名称 (如: gpt-4)" class="w-full p-2.5 bg-gray-50 border rounded-lg text-sm focus:ring-2 ring-blue-500 outline-none transition">
                     </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">API Key</label>
-                        <input v-model="apiConfig.apiKey" type="password" placeholder="sk-..." class="w-full p-2 border rounded text-xs focus:ring-2 ring-blue-500 outline-none">
-                        <p class="text-[10px] text-gray-400 mt-1">留空则使用内置模拟数据演示</p>
-                    </div>
-                    <div>
-                        <label class="block text-xs text-gray-600 mb-1">模型名称</label>
-                        <input v-model="apiConfig.model" type="text" placeholder="gpt-4, deepseek-chat" class="w-full p-2 border rounded text-xs focus:ring-2 ring-blue-500 outline-none">
+
+                    <div class="space-y-3 pt-2 border-t border-dashed">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider">功能开关</h4>
+                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                             <label class="text-sm font-medium">会议时长 (分钟)</label>
+                             <input v-model.number="settings.duration" type="number" class="w-16 p-1 border rounded text-center bg-white">
+                        </div>
+                        <div class="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                            <label class="text-sm font-medium flex items-center gap-2">
+                                <i class="fa-solid fa-globe text-blue-500"></i> 联网搜索
+                            </label>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" v-model="settings.webSearch" class="sr-only peer">
+                                <div class="w-10 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
-                <div class="space-y-3 pt-2 border-t">
-                    <h4 class="text-xs font-bold text-gray-400 uppercase">功能开关</h4>
-                    <div class="flex items-center justify-between">
-                         <label class="text-xs text-gray-700">会议时长 (分钟)</label>
-                         <input v-model.number="settings.duration" type="number" class="w-20 p-1 border rounded text-xs text-center">
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <label class="text-xs text-gray-700 flex items-center gap-1">
-                            <i class="fa-solid fa-globe text-blue-500"></i> 允许联网搜索
-                        </label>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" v-model="settings.webSearch" class="sr-only peer">
-                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="pt-2">
-                    <button @click="showSettings = false" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-sm transition">保存配置</button>
-                </div>
+                <button @click="showSettings = false" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-md transition active:scale-95">保存并关闭</button>
             </div>
         </div>
     </transition>
 
-    <aside class="w-1/4 bg-white border-r border-gray-200 flex flex-col h-full shadow-sm z-10">
-        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <h1 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-users-rectangle mr-2 text-blue-600"></i>智能圆桌会议</h1>
-            <button @click="showSettings = true" class="text-gray-500 hover:text-blue-600 transition p-1 rounded hover:bg-gray-200" title="系统设置">
-                <i class="fa-solid fa-gear text-lg"></i>
+    <aside class="flex-col bg-white border-r border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20"
+           :class="activeTab === 'setup' ? 'flex' : 'hidden'">
+        
+        <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 sticky top-0 z-10">
+            <h1 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-users-rectangle mr-2 text-blue-600"></i>圆桌会议</h1>
+            <button @click="showSettings = true" class="w-8 h-8 rounded-full bg-white border hover:bg-blue-50 text-gray-600 hover:text-blue-600 transition shadow-sm" title="系统设置">
+                <i class="fa-solid fa-gear"></i>
             </button>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-4 space-y-6">
-            <section>
-                <h2 class="text-xs font-semibold text-gray-400 uppercase mb-2">议题与背景</h2>
-                <textarea v-model="topic" placeholder="输入本次会议核心议题..." class="w-full p-2 border rounded h-24 text-xs mb-2 focus:ring-2 ring-blue-500 outline-none resize-none"></textarea>
+        <div class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-4"> <section>
+                <h2 class="text-xs font-bold text-gray-400 uppercase mb-2 tracking-wider">核心议题</h2>
+                <textarea v-model="topic" placeholder="输入本次会议讨论的主题..." class="w-full p-3 border rounded-xl h-24 text-sm mb-2 focus:ring-2 ring-blue-500 outline-none resize-none bg-gray-50 focus:bg-white transition"></textarea>
                 
-                <div class="relative border-2 border-dashed border-gray-300 rounded p-4 text-center hover:bg-gray-50 transition cursor-pointer group">
+                <div class="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-blue-50 hover:border-blue-300 transition cursor-pointer group bg-gray-50">
                     <input type="file" @change="handleFileUpload" class="absolute inset-0 opacity-0 cursor-pointer" multiple accept=".txt,.md,.json">
-                    <div class="text-gray-500 group-hover:text-blue-500">
-                        <i class="fa-solid fa-cloud-upload-alt mb-1 text-xl"></i>
-                        <p class="text-xs">上传背景材料 (.txt, .md)</p>
+                    <div class="text-gray-500 group-hover:text-blue-600 transition">
+                        <i class="fa-solid fa-cloud-upload-alt mb-2 text-2xl"></i>
+                        <p class="text-xs font-medium">点击上传背景材料 (.txt)</p>
                     </div>
                 </div>
                 
                 <div class="mt-2 space-y-1">
-                    <div v-for="(file, idx) in backgroundFiles" :key="idx" class="flex justify-between items-center text-xs bg-blue-50 text-blue-700 p-1.5 rounded border border-blue-100">
-                        <span class="truncate max-w-[180px]"><i class="fa-regular fa-file-lines mr-1"></i>{{ file.name }}</span>
-                        <button @click="removeFile(idx)" class="text-red-400 hover:text-red-600 px-1">&times;</button>
+                    <div v-for="(file, idx) in backgroundFiles" :key="idx" class="flex justify-between items-center text-xs bg-blue-50 text-blue-700 p-2 rounded-lg border border-blue-100 animate-fade-in">
+                        <span class="truncate flex-1 mr-2"><i class="fa-regular fa-file-lines mr-1"></i>{{ file.name }}</span>
+                        <button @click="removeFile(idx)" class="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 text-red-400 hover:text-red-600">&times;</button>
                     </div>
                 </div>
             </section>
 
-            <hr>
-
             <section>
                 <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-xs font-semibold text-gray-400 uppercase">参会人员</h2>
-                    <button @click="addParticipant" class="text-blue-600 text-xs hover:underline flex items-center gap-1"><i class="fa-solid fa-plus"></i> 添加</button>
+                    <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">参会人员</h2>
+                    <button @click="addParticipant" class="text-blue-600 text-xs font-bold hover:bg-blue-50 px-2 py-1 rounded transition"><i class="fa-solid fa-plus mr-1"></i>添加角色</button>
                 </div>
                 
                 <div class="space-y-3">
-                    <div class="p-2 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <div class="flex justify-between items-center"><span class="font-bold text-xs text-yellow-800"><i class="fa-solid fa-microphone mr-1"></i>主持人 (Host)</span> <span class="text-[10px] bg-yellow-200 px-1 rounded text-yellow-800">控场</span></div>
+                    <div class="p-2.5 bg-yellow-50 border border-yellow-200 rounded-lg flex justify-between items-center">
+                        <span class="font-bold text-xs text-yellow-800 flex items-center"><i class="fa-solid fa-microphone w-5"></i>主持人</span> 
+                        <span class="text-[10px] bg-yellow-200 px-1.5 py-0.5 rounded text-yellow-800 font-bold">控场</span>
                     </div>
-                    <div class="p-2 bg-purple-50 border border-purple-200 rounded-md">
-                        <div class="flex justify-between items-center"><span class="font-bold text-xs text-purple-800"><i class="fa-solid fa-pen-nib mr-1"></i>书记员 (Clerk)</span> <span class="text-[10px] bg-purple-200 px-1 rounded text-purple-800">总结</span></div>
+                    <div class="p-2.5 bg-purple-50 border border-purple-200 rounded-lg flex justify-between items-center">
+                        <span class="font-bold text-xs text-purple-800 flex items-center"><i class="fa-solid fa-pen-nib w-5"></i>书记员</span> 
+                        <span class="text-[10px] bg-purple-200 px-1.5 py-0.5 rounded text-purple-800 font-bold">记录</span>
                     </div>
 
-                    <div v-for="(p, index) in customParticipants" :key="index" class="p-3 border rounded-md relative group bg-white shadow-sm hover:shadow-md transition">
-                        <button @click="removeParticipant(index)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 hidden group-hover:block">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                        <div class="flex items-center gap-2 mb-2">
-                            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">
-                                {{ p.name.charAt(0) }}
+                    <transition-group name="fade">
+                        <div v-for="(p, index) in customParticipants" :key="index" class="p-3 border rounded-xl relative group bg-white shadow-sm hover:shadow-md transition">
+                            <button @click="removeParticipant(index)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500 w-6 h-6 flex items-center justify-center transition">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                            <div class="flex items-center gap-2 mb-2 pr-6">
+                                <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-bold shrink-0">
+                                    {{ p.name.charAt(0) }}
+                                </div>
+                                <input v-model="p.name" class="font-bold text-sm border-b border-transparent hover:border-gray-300 focus:border-blue-500 w-full outline-none bg-transparent transition" placeholder="角色名称">
                             </div>
-                            <div class="flex-1">
-                                <input v-model="p.name" class="font-bold text-xs border-b w-full focus:outline-none focus:border-blue-500 pb-0.5" placeholder="角色名">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[10px] text-gray-400 uppercase font-bold">Type</span>
+                                <select v-model="p.type" class="text-[10px] border rounded bg-gray-50 px-2 py-0.5 outline-none">
+                                    <option value="ai">AI 托管</option>
+                                    <option value="human">人工扮演</option>
+                                </select>
                             </div>
+                            <textarea v-model="p.prompt" class="w-full text-xs text-gray-600 border border-gray-200 p-2 rounded-lg h-16 resize-none bg-gray-50 focus:bg-white focus:ring-1 ring-blue-300 outline-none transition" placeholder="设定该角色的性格、立场..."></textarea>
                         </div>
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-[10px] text-gray-500">控制权:</span>
-                            <select v-model="p.type" class="text-[10px] border rounded bg-gray-50 px-1 py-0.5 outline-none">
-                                <option value="ai">AI 托管</option>
-                                <option value="human">人工扮演</option>
-                            </select>
-                        </div>
-                        <textarea v-model="p.prompt" class="w-full text-[10px] text-gray-600 border p-1.5 rounded h-14 resize-none bg-gray-50 focus:bg-white focus:ring-1 ring-blue-300 outline-none" placeholder="输入人设：性格、立场、职责..."></textarea>
-                    </div>
+                    </transition-group>
                 </div>
             </section>
         </div>
     </aside>
 
-    <main class="w-1/2 flex flex-col bg-slate-50 relative">
-        <header class="h-14 border-b flex items-center justify-between px-6 bg-white shadow-sm z-10">
-            <div class="flex items-center gap-3">
-                <span class="px-2.5 py-1 rounded-full text-xs font-bold tracking-wide shadow-sm" :class="statusColor">
+    <main class="flex-col bg-slate-50 relative h-full w-full md:w-1/2 md:flex"
+          :class="activeTab === 'chat' ? 'flex' : 'hidden'">
+          
+        <header class="h-14 border-b flex items-center justify-between px-4 bg-white shadow-sm z-10 shrink-0">
+            <div class="flex items-center gap-2 overflow-hidden">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide shadow-sm whitespace-nowrap" :class="statusColor">
                     {{ statusText }}
                 </span>
-                <span class="text-xs text-gray-500 border-l pl-3">第 <span class="font-bold text-gray-800">{{ currentRound }}</span> 轮讨论</span>
-                <span v-if="settings.webSearch" class="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100" title="联网已开启">
-                    <i class="fa-solid fa-globe mr-1"></i>Web On
+                <span class="text-xs text-gray-500 border-l pl-2 truncate">第 <span class="font-bold text-gray-800">{{ currentRound }}</span> 轮</span>
+                <span v-if="settings.webSearch" class="hidden sm:inline-block text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                    <i class="fa-solid fa-globe"></i> Web
                 </span>
             </div>
-            <div class="font-mono text-xl font-bold text-gray-700 tracking-wider" :class="{'text-red-500': timeLeft < 60}">
+            <div class="font-mono text-lg font-bold text-gray-700 tabular-nums" :class="{'text-red-500': timeLeft < 60}">
                 {{ formatTime(timeLeft) }}
             </div>
         </header>
 
-        <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6">
-            <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
-                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <i class="fa-solid fa-comments text-3xl text-gray-300"></i>
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-6 scroll-smooth">
+            <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400 animate-fade-in">
+                <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
+                    <i class="fa-solid fa-comments text-4xl text-gray-200"></i>
                 </div>
-                <p class="text-sm font-medium">准备就绪</p>
-                <p class="text-xs mt-1">请配置角色后点击“启动会议”</p>
+                <p class="text-sm font-medium text-gray-500">会议准备就绪</p>
+                <p class="text-xs mt-1 text-gray-400">请配置角色后点击下方按钮启动</p>
+                <button v-if="status === 'setup'" @click="startMeeting" class="mt-6 md:hidden bg-blue-600 text-white px-8 py-2 rounded-full shadow-lg text-sm font-bold">
+                    立即开始
+                </button>
             </div>
 
-            <div v-for="(msg, index) in messages" :key="index" class="flex flex-col animate-fade-in group">
-                <div v-if="msg.role === '书记员'" class="mx-auto w-4/5 clerk-bubble rounded-xl p-5 shadow-sm relative overflow-hidden">
+            <div v-for="(msg, index) in messages" :key="index" class="flex flex-col group animate-fade-in">
+                <div v-if="msg.role === '书记员'" class="mx-auto w-[90%] md:w-4/5 clerk-bubble rounded-xl p-4 shadow-sm relative overflow-hidden my-2">
                     <div class="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
-                    <div class="flex items-center gap-2 mb-3 text-purple-700 font-bold border-b border-purple-200 pb-2">
+                    <div class="flex items-center gap-2 mb-2 text-purple-700 font-bold border-b border-purple-200 pb-2">
                         <i class="fa-solid fa-scroll"></i>
-                        <span>{{ msg.role }} - 阶段总结</span>
-                        <span class="text-[10px] font-normal ml-auto text-purple-400">{{ msg.time }}</span>
+                        <span class="text-xs">{{ msg.role }}</span>
+                        <span class="text-[10px] font-normal ml-auto text-purple-400 opacity-70">{{ msg.time }}</span>
                     </div>
-                    <div class="prose prose-sm prose-purple max-w-none text-xs leading-relaxed" v-html="renderMarkdown(msg.content)"></div>
+                    <div class="prose prose-sm prose-purple max-w-none text-xs leading-relaxed break-words" v-html="renderMarkdown(msg.content)"></div>
                 </div>
 
-                <div v-else-if="msg.isSearchAction" class="flex items-center gap-2 text-xs text-blue-500 ml-4 mb-1 italic opacity-80">
-                    <i class="fa-solid fa-search fa-spin"></i> {{ msg.role }} 正在检索实时数据...
+                <div v-else-if="msg.isSearchAction" class="flex items-center gap-2 text-xs text-blue-500 ml-4 mb-2 italic opacity-80 bg-blue-50 self-start px-3 py-1 rounded-full">
+                    <i class="fa-solid fa-search fa-spin"></i> {{ msg.role }} 正在检索数据...
                 </div>
 
-                <div v-else class="flex flex-col gap-1 max-w-[85%]" :class="msg.role.includes('主持人') ? 'self-center w-3/4' : 'self-start'">
+                <div v-else class="flex flex-col gap-1 max-w-[90%] md:max-w-[85%]" :class="msg.role.includes('主持人') ? 'self-center w-full md:w-3/4' : 'self-start'">
                     <div class="flex items-center gap-2 text-[10px] text-gray-500 px-1" :class="{'justify-center': msg.role.includes('主持人')}">
                         <span class="font-bold text-gray-700">{{ msg.role }}</span>
                         <span>{{ msg.time }}</span>
                     </div>
-                    <div class="p-3.5 rounded-2xl shadow-sm text-gray-800 text-xs leading-relaxed border relative transition-colors duration-500" 
+                    <div class="p-3.5 rounded-2xl shadow-sm text-gray-800 text-sm leading-relaxed border relative transition-all duration-300 break-words" 
                          :class="[
                             msg.role.includes('主持人') ? 'bg-orange-50 border-orange-200 rounded-tr-none text-center' : 'bg-white border-gray-100 rounded-tl-none',
                             msg.isIntervention ? 'ring-2 ring-red-400 border-red-400 bg-red-50 intervention-highlight' : ''
                          ]">
-                         <div v-if="msg.isIntervention" class="absolute -top-3 -right-3 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow font-bold">
-                             <i class="fa-solid fa-bolt"></i> 强制插话
+                         <div v-if="msg.isIntervention" class="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full shadow font-bold z-10">
+                             <i class="fa-solid fa-bolt mr-1"></i>强制插话
                          </div>
                         <div class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
                     </div>
                 </div>
             </div>
 
-            <div v-if="isAiTyping" class="flex items-center gap-2 text-gray-400 text-xs ml-4">
+            <div v-if="isAiTyping" class="flex items-center gap-2 text-gray-400 text-xs ml-4 pb-2">
                 <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-bold text-gray-500">
                     {{ currentSpeakerName.charAt(0) }}
                 </div>
-                <span class="font-bold text-gray-600">{{ currentSpeakerName }}</span> 正在发言
-                <div class="flex gap-1 ml-1">
-                    <div class="w-1 h-1 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0s"></div>
-                    <div class="w-1 h-1 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0.2s"></div>
-                    <div class="w-1 h-1 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0.4s"></div>
+                <span class="font-bold text-gray-600">{{ currentSpeakerName }}</span>
+                <div class="flex gap-1 ml-1 items-center h-4">
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0s"></div>
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0.2s"></div>
+                    <div class="w-1.5 h-1.5 bg-gray-400 rounded-full typing-dot" style="animation-delay: 0.4s"></div>
                 </div>
             </div>
         </div>
 
-        <footer class="p-4 border-t bg-white z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <footer class="p-3 md:p-4 border-t bg-white z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] shrink-0 pb-20 md:pb-4">
             <div v-if="status === 'setup' || status === 'finished'" class="flex justify-center">
-                <button @click="startMeeting" class="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 rounded-full shadow-lg hover:shadow-xl transition flex items-center gap-2 text-sm font-bold transform hover:-translate-y-0.5">
+                <button @click="startMeeting" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl md:rounded-full shadow-lg hover:shadow-xl transition flex items-center justify-center gap-2 text-sm font-bold active:scale-95">
                     <i class="fa-solid fa-play"></i> {{ status === 'setup' ? '启动圆桌会议' : '开启新会议' }}
                 </button>
             </div>
 
             <div v-else class="flex flex-col gap-3">
-                <div v-if="waitingForHuman" class="flex gap-2 animate-pulse bg-green-50 p-1 rounded-md border border-green-200 items-center">
-                    <span class="text-xs font-bold text-green-700 px-2 py-1 bg-green-200 rounded whitespace-nowrap">轮到: {{ currentSpeakerName }}</span>
-                    <input v-model="humanInput" @keyup.enter="submitHumanInput" type="text" class="flex-1 text-sm bg-transparent outline-none text-gray-700 placeholder-green-700/50" placeholder="请输入您的观点...">
-                    <button @click="submitHumanInput" class="text-green-600 hover:text-green-800 px-3"><i class="fa-solid fa-paper-plane"></i></button>
+                <div v-if="waitingForHuman" class="flex gap-2 animate-pulse bg-green-50 p-2 rounded-xl border border-green-200 items-center shadow-inner">
+                    <span class="text-xs font-bold text-green-700 px-2 py-1 bg-green-200 rounded whitespace-nowrap">轮到你了</span>
+                    <input v-model="humanInput" @keyup.enter="submitHumanInput" type="text" class="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder-green-700/40" placeholder="请输入观点...">
+                    <button @click="submitHumanInput" class="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-lg shadow"><i class="fa-solid fa-paper-plane text-xs"></i></button>
                 </div>
 
                 <div v-else class="flex gap-2 items-center">
                      <div class="relative flex-1">
-                        <i class="fa-solid fa-bolt absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-                        <input v-model="interventionText" @keyup.enter="triggerIntervention" type="text" class="w-full border rounded-full pl-8 pr-4 py-2 text-xs focus:ring-2 ring-red-200 outline-none bg-gray-50 focus:bg-white transition" placeholder="强制插话 (AI将停止当前话题并优先响应)...">
+                        <i class="fa-solid fa-bolt absolute left-3 top-3 text-gray-400 text-xs"></i>
+                        <input v-model="interventionText" @keyup.enter="triggerIntervention" type="text" class="w-full border border-gray-200 rounded-full pl-8 pr-4 py-2.5 text-sm focus:ring-2 ring-red-200 outline-none bg-gray-50 focus:bg-white transition" placeholder="输入内容强制插话...">
                      </div>
-                     <button @click="triggerIntervention" class="bg-white hover:bg-red-50 text-red-500 border border-red-200 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition shadow-sm hover:shadow">
+                     <button @click="triggerIntervention" class="bg-white hover:bg-red-50 text-red-500 border border-red-200 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition shadow-sm active:scale-95">
                          插话
                      </button>
                 </div>
 
                 <div class="flex justify-between items-center border-t pt-2 border-gray-100">
                     <div class="flex gap-2">
-                        <button @click="togglePause" class="text-gray-600 hover:text-blue-600 text-xs bg-gray-100 hover:bg-blue-50 px-4 py-1.5 rounded-md transition flex items-center gap-2">
+                        <button @click="togglePause" class="flex-1 md:flex-none text-gray-600 hover:text-blue-600 text-xs bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-2">
                             <i class="fa-solid" :class="paused ? 'fa-play' : 'fa-pause'"></i> 
-                            {{ paused ? '继续会议' : '暂停会议' }}
+                            {{ paused ? '继续' : '暂停' }}
                         </button>
-                        <button @click="endMeeting" class="text-gray-500 hover:text-red-600 text-xs hover:bg-red-50 px-4 py-1.5 rounded-md transition flex items-center gap-2">
+                        <button @click="endMeeting" class="flex-1 md:flex-none text-gray-500 hover:text-red-600 text-xs hover:bg-red-50 px-3 py-1.5 rounded-lg transition flex items-center justify-center gap-2">
                             <i class="fa-solid fa-stop"></i> 结束
                         </button>
                     </div>
-                    <div class="text-[10px] text-gray-400 flex items-center gap-2">
+                    <div class="text-[10px] text-gray-400 flex items-center gap-2 hidden sm:flex">
                         <span v-if="!paused" class="flex h-2 w-2 relative">
                           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                           <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                         </span>
-                        当前发言: {{ currentSpeakerName || '准备中' }}
+                        当前: {{ currentSpeakerName || '...' }}
                     </div>
                 </div>
             </div>
         </footer>
     </main>
 
-    <aside class="w-1/4 bg-white border-l border-gray-200 flex flex-col h-full shadow-sm z-10">
-        <div class="p-4 border-b bg-gray-50 flex items-center justify-between">
-            <h3 class="font-bold text-gray-700 text-xs uppercase"><i class="fa-solid fa-clipboard-list mr-2 text-purple-600"></i>实时白板</h3>
-            <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
+    <aside class="flex-col bg-white border-l border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20"
+           :class="activeTab === 'board' ? 'flex' : 'hidden'">
+        
+        <div class="p-4 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+            <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wider"><i class="fa-solid fa-clipboard-list mr-2 text-purple-600"></i>实时白板</h3>
+            <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Auto-Sync</span>
         </div>
         
-        <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
-            <div v-if="finalReport" class="p-4 bg-green-50 border border-green-200 rounded-lg shadow-sm animate-fade-in relative">
-                <div class="absolute -top-3 left-4 bg-green-600 text-white text-[10px] px-2 py-0.5 rounded shadow-sm">
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-white pb-20 md:pb-4">
+            <div v-if="finalReport" class="p-4 bg-green-50 border border-green-200 rounded-xl shadow-sm animate-fade-in relative">
+                <div class="absolute -top-2.5 left-4 bg-green-600 text-white text-[10px] px-2 py-0.5 rounded shadow-sm font-bold tracking-wide">
                     FINAL REPORT
                 </div>
-                <h4 class="font-bold text-green-800 text-sm mb-3 mt-1 border-b border-green-200 pb-2">会议最终纪要</h4>
-                <div class="prose prose-xs prose-green max-w-none" v-html="renderMarkdown(finalReport)"></div>
+                <h4 class="font-bold text-green-800 text-sm mb-3 mt-2 border-b border-green-200 pb-2">会议最终纪要</h4>
+                <div class="prose prose-xs prose-green max-w-none break-words" v-html="renderMarkdown(finalReport)"></div>
                 <div class="mt-4 pt-2 border-t border-green-200 text-center">
-                    <button @click="exportReport" class="w-full text-xs bg-white border border-green-300 text-green-700 px-3 py-1.5 rounded hover:bg-green-600 hover:text-white transition flex items-center justify-center gap-2">
+                    <button @click="exportReport" class="w-full text-xs bg-white border border-green-300 text-green-700 px-3 py-2 rounded-lg hover:bg-green-600 hover:text-white transition flex items-center justify-center gap-2 font-bold">
                         <i class="fa-solid fa-download"></i> 导出 Markdown
                     </button>
                 </div>
             </div>
 
-            <div v-for="(summary, idx) in summaries" :key="idx" class="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-purple-300 transition group">
+            <div v-for="(summary, idx) in summaries" :key="idx" class="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs hover:border-purple-300 transition group animate-fade-in">
                 <div class="flex justify-between text-gray-400 mb-2 pb-1 border-b border-gray-100">
                     <span class="font-bold text-gray-600 group-hover:text-purple-600 transition">第 {{ summary.round }} 轮小结</span>
                     <span>{{ summary.time }}</span>
                 </div>
-                <div class="prose prose-xs text-gray-600" v-html="renderMarkdown(summary.content)"></div>
+                <div class="prose prose-xs text-gray-600 break-words" v-html="renderMarkdown(summary.content)"></div>
             </div>
 
-            <div v-if="summaries.length === 0 && !finalReport" class="text-center mt-20 opacity-50">
-                <i class="fa-regular fa-clipboard text-4xl text-gray-300 mb-2"></i>
-                <p class="text-xs text-gray-400">暂无记录<br>等待书记员产出...</p>
+            <div v-if="summaries.length === 0 && !finalReport" class="flex flex-col items-center justify-center h-64 opacity-40">
+                <i class="fa-regular fa-clipboard text-5xl text-gray-300 mb-3"></i>
+                <p class="text-xs text-gray-400 text-center">暂无记录<br>等待书记员产出...</p>
             </div>
         </div>
     </aside>
 
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe">
+        <button @click="activeTab = 'setup'" class="flex flex-col items-center gap-1 w-1/3 py-2 transition" :class="activeTab === 'setup' ? 'text-blue-600' : 'text-gray-400'">
+            <i class="fa-solid fa-sliders text-xl"></i>
+            <span class="text-[10px] font-bold">配置</span>
+        </button>
+        <button @click="activeTab = 'chat'" class="flex flex-col items-center gap-1 w-1/3 py-2 transition" :class="activeTab === 'chat' ? 'text-blue-600' : 'text-gray-400'">
+            <div class="relative">
+                <i class="fa-solid fa-comments text-xl"></i>
+                <span v-if="status === 'running'" class="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border border-white animate-pulse"></span>
+            </div>
+            <span class="text-[10px] font-bold">会议</span>
+        </button>
+        <button @click="activeTab = 'board'" class="flex flex-col items-center gap-1 w-1/3 py-2 transition" :class="activeTab === 'board' ? 'text-blue-600' : 'text-gray-400'">
+            <div class="relative">
+                <i class="fa-solid fa-clipboard-list text-xl"></i>
+                <span v-if="summaries.length > 0" class="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] px-1 rounded-full">{{ summaries.length }}</span>
+            </div>
+            <span class="text-[10px] font-bold">白板</span>
+        </button>
+    </nav>
+
 </div>
 
 <script>
-    const { createApp, ref, computed, reactive, nextTick } = Vue;
+    const { createApp, ref, computed, reactive, nextTick, watch } = Vue;
 
     createApp({
         setup() {
             // --- UI 状态 ---
             const showSettings = ref(false);
+            const activeTab = ref('setup'); // 移动端当前显示的标签页
             const status = ref('setup'); 
             const paused = ref(false);
             const topic = ref('如何利用生成式 AI 优化企业内部知识管理？');
@@ -354,7 +373,6 @@
             const interventionText = ref('');
             const timeLeft = ref(settings.duration * 60);
             
-            // 计时器引用
             let timerInterval = null;
             let turnTimer = null; 
 
@@ -390,6 +408,11 @@
                 if (status.value === 'finished') return 'bg-gray-200 text-gray-700';
                 return 'bg-blue-100 text-blue-700';
             });
+            
+            // 自动切换 Tab 逻辑：当会议开始时，自动切到会议 Tab
+            watch(status, (newVal) => {
+                if (newVal === 'running') activeTab.value = 'chat';
+            });
 
             // --- 方法 ---
 
@@ -405,6 +428,9 @@
                 summaries.value = [];
                 finalReport.value = null;
                 currentRound.value = 1;
+                
+                // 移动端体验优化：开始后自动切到聊天界面
+                activeTab.value = 'chat';
                 
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(() => {
@@ -434,7 +460,7 @@
                 const currentRole = roles[idx];
                 
                 if (currentRole.type === 'human') {
-                    // 等待 UI
+                    // 等待 UI，如果当前不在聊天tab，为了提示用户，可以考虑加个红点(这里简化处理)
                 } else {
                     isAiTyping.value = true;
                     scrollToBottom();
@@ -447,7 +473,6 @@
             const nextTurn = () => {
                 if (status.value !== 'running') return;
                 speakerIndex.value++;
-                // 允许插话取消此定时器
                 turnTimer = setTimeout(() => processTurn(), 800);
             };
 
@@ -463,13 +488,11 @@
                     .map(m => `${m.role}: ${m.content}`)
                     .join('\n');
 
-                // 核心修复：更强烈的插话检测与 Prompt 构建
                 const lastMsg = messages.value[messages.value.length - 1];
                 const isIntervention = lastMsg && lastMsg.isIntervention;
                 
                 let instruction = `请以"${role.name}"身份发言。观点需简练、符合人设。`;
                 
-                // 将插话指令放在最后，利用近因效应
                 let promptTail = "";
                 
                 if (isIntervention) {
@@ -505,7 +528,6 @@
             const triggerIntervention = () => {
                 if (!interventionText.value.trim()) return;
                 
-                // 1. 插入消息
                 messages.value.push({
                     role: '主持人 (插话)', 
                     content: interventionText.value,
@@ -517,12 +539,9 @@
                 interventionText.value = '';
                 scrollToBottom();
 
-                // 2. 核心修复：立即打断并强制接管
                 if (!isAiTyping.value && status.value === 'running') {
-                    if (turnTimer) clearTimeout(turnTimer); // 停止等待
+                    if (turnTimer) clearTimeout(turnTimer); 
                     
-                    // 防止索引指向书记员，导致插话被书记员总结吞掉
-                    // 如果当前轮到书记员(越界)，则强制指派给最后一个发言者来回答插话
                     if (speakerIndex.value >= allRoles.value.length) {
                          speakerIndex.value = Math.max(0, allRoles.value.length - 1);
                     }
@@ -569,6 +588,11 @@
                 
                 finalReport.value = report;
                 isAiTyping.value = false;
+                
+                // 结束后提示用户查看白板
+                if(window.innerWidth < 768) {
+                    setTimeout(() => alert("会议已结束，请前往【白板】查看最终纪要"), 500);
+                }
             };
 
             // --- LLM 调用 ---
@@ -592,11 +616,9 @@
                 }
             };
 
-            // 核心修复：Mock 逻辑必须能识别插话
             const mockLLMResponse = (system, user) => {
                 return new Promise(resolve => {
                     setTimeout(() => {
-                        // 1. 优先检测插话指令
                         if (user.includes("HIGHEST PRIORITY") || (user.includes("主持人") && user.includes("插话"))) {
                             const responses = [
                                 "好的主持人，收到您的指示。针对您刚才提出的点，我认为...",
@@ -607,7 +629,6 @@
                             return;
                         }
 
-                        // 2. 正常逻辑
                         if (system.includes("书记员")) {
                             resolve(`**本轮小结**：\n- 讨论了方案的可行性。\n- **共识**：方向正确。\n- **冲突**：预算不足。`);
                         } else if (user.includes("生成Markdown纪要")) {
@@ -636,7 +657,7 @@
             
             const scrollToBottom = () => nextTick(() => {
                 const c = document.getElementById('chat-container');
-                c.scrollTop = c.scrollHeight;
+                if(c) c.scrollTop = c.scrollHeight;
             });
 
             const submitHumanInput = () => {
@@ -661,12 +682,13 @@
             const formatTime = (s) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
             const renderMarkdown = (t) => marked.parse(t);
             const exportReport = () => {
+                if(!finalReport.value) return;
                 const url = URL.createObjectURL(new Blob([finalReport.value], {type: 'text/markdown'}));
                 const a = document.createElement('a'); a.href = url; a.download = 'Meeting_Report.md'; a.click();
             };
 
             return {
-                showSettings, status, paused, topic, apiConfig, settings,
+                showSettings, status, paused, topic, apiConfig, settings, activeTab,
                 customParticipants, messages, summaries, backgroundFiles,
                 currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport,
                 statusText, statusColor, currentSpeakerName, waitingForHuman,
