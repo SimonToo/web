@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 圆桌会 (可延时版)</title>
+    <title>AI 圆桌会 (滚动优化版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     
     <script src="talentPool.js"></script>
+    <script src="api.js"></script>
     
     <style>
         body { -webkit-tap-highlight-color: transparent; }
@@ -18,9 +19,59 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
         .clerk-bubble { border: 2px solid #8b5cf6; background-color: #f5f3ff; }
-        .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
-        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
         
+        /* --- 完美光标 CSS --- */
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        .typing-cursor:empty::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 2px; font-weight: bold; }
+        .typing-cursor > :last-child::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 2px; vertical-align: baseline; font-weight: bold; }
+        .typing-cursor > ul:last-child::after, .typing-cursor > ol:last-child::after { content: none !important; }
+        .typing-cursor > ul:last-child > li:last-child::after, .typing-cursor > ol:last-child > li:last-child::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 2px; font-weight: bold; }
+        .typing-cursor > pre:last-child::after { content: none !important; }
+        .typing-cursor > pre:last-child > code::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 0; font-weight: bold; }
+        .typing-cursor > blockquote:last-child::after { content: none !important; }
+        .typing-cursor > blockquote:last-child > p:last-child::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 2px; }
+        
+        /* --- @Mention 菜单样式 --- */
+        .mention-menu {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 100%;
+            max-width: 200px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 -4px 6px -1px rgba(0,0,0,0.1);
+            max-height: 160px;
+            overflow-y: auto;
+            z-index: 100;
+            margin-bottom: 8px;
+        }
+        .mention-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+        .mention-item:hover, .mention-item.active {
+            background-color: #eff6ff;
+        }
+        .mention-avatar {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #dbeafe;
+            color: #2563eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 10px;
+        }
+
         .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         .scale-enter-active, .scale-leave-active { transition: transform 0.2s ease, opacity 0.2s ease; }
@@ -29,9 +80,14 @@
         .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(10px); }
         .list-leave-active { position: absolute; }
         
-        .intervention-highlight { animation: flash 1s; }
-        @keyframes flash { 0% { background-color: #fee2e2; } 100% { background-color: #fff1f2; } }
         .mobile-height { height: 100dvh; }
+        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+        
+        /* 拖动相关样式 */
+        .drag-handle { cursor: grab; color: #cbd5e1; padding: 4px; transition: color 0.2s; }
+        .drag-handle:hover { color: #64748b; }
+        .draggable-item.dragging { opacity: 0.5; border: 2px dashed #94a3b8; }
+        .draggable-item { transition: transform 0.2s, box-shadow 0.2s; }
     </style>
 </head>
 <body class="bg-gray-100 mobile-height overflow-hidden text-sm font-sans text-gray-700">
@@ -67,106 +123,138 @@
 
     <transition name="fade">
         <div v-if="showSettings" class="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-            <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-5 space-y-4 animate-scale">
-                <div class="flex justify-between items-center border-b pb-3">
-                    <h3 class="font-bold text-gray-800 text-lg"><i class="fa-solid fa-cog mr-2 text-blue-600"></i>系统设置</h3>
-                    <button @click="showSettings = false" class="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-400"><i class="fa-solid fa-times"></i></button>
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-scale relative overflow-hidden">
+                <div class="flex justify-between items-center border-b p-4 bg-gray-50">
+                    <h3 class="font-bold text-gray-800 text-lg"><i class="fa-solid fa-cubes mr-2 text-blue-600"></i>模型广场</h3>
+                    <button @click="showSettings = false" class="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 transition"><i class="fa-solid fa-times"></i></button>
                 </div>
-                <div class="space-y-4">
-                    <div class="space-y-2">
-                        <h4 class="text-xs font-bold text-gray-400 uppercase">AI 模型配置</h4>
-                        <input v-model="apiConfig.baseUrl" type="text" placeholder="Base URL" class="w-full p-2 bg-gray-50 border rounded text-xs">
-                        <input v-model="apiConfig.apiKey" type="password" placeholder="API Key" class="w-full p-2 bg-gray-50 border rounded text-xs">
-                        <input v-model="apiConfig.model" type="text" placeholder="Model" class="w-full p-2 bg-gray-50 border rounded text-xs">
-                    </div>
-                    <div class="flex items-center justify-between">
-                         <label class="text-xs font-bold text-gray-600">会议时长 (分钟)</label>
-                         <input v-model.number="settings.duration" type="number" placeholder="留空即不限时" class="w-24 p-1 border rounded text-center text-xs focus:ring-2 ring-blue-500 outline-none">
-                    </div>
-                    <div class="flex items-center justify-between">
-                        <label class="text-xs font-bold text-gray-600 flex items-center gap-1"><i class="fa-solid fa-globe text-blue-500"></i> 联网搜索</label>
-                        <input type="checkbox" v-model="settings.webSearch" class="accent-blue-600 w-4 h-4">
+                
+                <div class="p-3 border-b bg-white flex flex-col sm:flex-row gap-3 items-center justify-between shadow-sm z-10">
+                    <div class="flex gap-2 w-full sm:w-auto flex-1">
+                        <div class="relative flex-1 max-w-md">
+                            <i class="fa-solid fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+                            <input v-model="modelSearchQuery" type="text" class="w-full bg-gray-100 border border-transparent focus:bg-white focus:border-blue-300 rounded-lg pl-8 pr-4 py-2 text-xs focus:ring-2 ring-blue-100 outline-none transition" placeholder="搜索模型名称、备注...">
+                        </div>
+                        <select v-model="selectedPlatformFilter" class="bg-gray-100 border border-transparent focus:bg-white focus:border-blue-300 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 ring-blue-100 transition cursor-pointer">
+                            <option value="">全部平台</option>
+                            <option v-for="p in uniquePlatforms" :key="p" :value="p">{{ p }}</option>
+                        </select>
                     </div>
                 </div>
-                <button @click="showSettings = false" class="w-full bg-blue-600 text-white py-2 rounded text-xs font-bold">完成</button>
+
+                <div class="flex-1 overflow-y-auto p-4 bg-slate-50">
+                    <div v-if="filteredModels.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <i class="fa-solid fa-box-open text-4xl mb-3 opacity-50"></i>
+                        <p class="text-xs">未找到匹配的模型 (需在 api.js 中配置)</p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div v-for="item in filteredModels" :key="item.id" 
+                             class="bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition group relative flex flex-col"
+                             :class="{'ring-2 ring-blue-500 border-blue-500': globalModelId === item.id, 'border-gray-200': globalModelId !== item.id}">
+                            <div v-if="globalModelId === item.id" class="absolute top-0 right-0 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-bl-lg rounded-tr-lg font-bold shadow-sm">
+                                默认模型
+                            </div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="bg-gray-100 text-gray-600 text-[10px] px-2 py-1 rounded font-bold tracking-wide uppercase">{{ item.platform }}</span>
+                            </div>
+                            <h4 class="font-bold text-gray-800 text-sm mb-1 truncate" :title="item.model">{{ item.model }}</h4>
+                            <p class="text-[10px] text-gray-400 font-mono mb-3 truncate" :title="item.url">{{ item.url }}</p>
+                            
+                            <div class="bg-gray-50 rounded p-2 mb-3 h-20 overflow-y-auto border border-gray-100">
+                                <p class="text-[11px] text-gray-500 leading-relaxed whitespace-pre-wrap">{{ item.remark || '暂无备注' }}</p>
+                            </div>
+                            
+                            <button @click="setGlobalModel(item.id)" 
+                                    class="w-full py-2 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2"
+                                    :class="globalModelId === item.id ? 'bg-blue-50 text-blue-600 cursor-default' : 'bg-gray-100 text-gray-600 hover:bg-gray-800 hover:text-white'">
+                                <i class="fa-solid" :class="globalModelId === item.id ? 'fa-check-circle' : 'fa-star'"></i>
+                                {{ globalModelId === item.id ? '默认模型' : '设为默认' }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-white border-t flex justify-between items-center text-xs text-gray-600">
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold">会议时长:</span>
+                            <input v-model.number="settings.duration" type="number" placeholder="无限" class="w-12 bg-gray-50 border rounded text-center py-1 outline-none focus:ring-1 ring-blue-300">
+                            <span>分</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                             <label class="flex items-center gap-1 cursor-pointer select-none">
+                                <input type="checkbox" v-model="settings.webSearch" class="accent-blue-600">
+                                <span>联网搜索(模拟)</span>
+                             </label>
+                        </div>
+                    </div>
+                    <div class="text-gray-400 italic">配置即时生效</div>
+                </div>
             </div>
         </div>
     </transition>
 
-    <transition name="scale">
-        <div v-if="showTalentMarket" class="fixed inset-0 bg-gray-100 z-[60] flex flex-col p-2 md:p-8">
-            <div class="bg-white rounded-2xl shadow-xl flex flex-col h-full max-w-6xl mx-auto w-full overflow-hidden border border-gray-200">
+    <transition name="fade">
+        <div v-if="showTalentMarket" class="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[85vh] flex flex-col animate-scale relative overflow-hidden">
                 <div class="p-4 border-b flex justify-between items-center bg-slate-50 shrink-0">
                     <div>
                         <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
                             <span class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center"><i class="fa-solid fa-store"></i></span>
                             人才市场
                         </h2>
-                        <p class="text-[10px] text-gray-500 mt-0.5 ml-1">管理预设数据，导出后覆盖 talentPool.js 生效</p>
+                        <p class="text-[10px] text-gray-500 mt-0.5 ml-1">数据来源：talentPool.js</p>
                     </div>
                     <div class="flex gap-2">
-                        <button @click="exportTalentPoolJS" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm transition flex items-center gap-1">
-                            <i class="fa-solid fa-file-export"></i> 导出 JS
-                        </button>
                         <button @click="showTalentMarket = false" class="w-8 h-8 rounded-full bg-white border hover:bg-gray-100 text-gray-500 transition"><i class="fa-solid fa-times"></i></button>
                     </div>
                 </div>
 
-                <div class="p-3 bg-white border-b flex items-center gap-2">
-                    <div class="relative flex-1">
+                <div class="p-3 bg-white border-b flex flex-col sm:flex-row gap-3 items-center">
+                    <div class="flex-1 w-full relative">
                         <i class="fa-solid fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-                        <input v-model="searchQuery" type="text" class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-xs focus:ring-2 ring-indigo-200 outline-none transition" placeholder="搜索人才...">
+                        <input v-model="searchQuery" type="text" class="w-full bg-gray-50 border border-gray-200 rounded-lg pl-8 pr-4 py-2 text-xs focus:ring-2 ring-indigo-200 outline-none transition" placeholder="搜索人才姓名、描述...">
                         <button v-if="searchQuery" @click="searchQuery = ''" class="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"><i class="fa-solid fa-times"></i></button>
+                    </div>
+                    
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <select v-model="selectedCategoryFilter" class="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs outline-none focus:ring-2 ring-indigo-200 cursor-pointer min-w-[120px]">
+                            <option value="">全部归属</option>
+                            <option v-for="c in uniqueCategories" :key="c" :value="c">{{ c }}</option>
+                        </select>
+                        <button v-if="availableTalents.length > 0" @click="batchRecruit" class="bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 px-3 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 whitespace-nowrap">
+                            <i class="fa-solid fa-layer-group"></i> 批量聘用({{ availableTalents.length }})
+                        </button>
                     </div>
                 </div>
 
                 <div class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
                     <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
-                        <div class="mb-4">
-                            <button @click="prepareEdit(null)" class="w-full border-2 border-dashed border-gray-300 rounded-xl p-3 text-gray-400 hover:border-indigo-500 hover:text-indigo-600 hover:bg-indigo-50 transition flex items-center justify-center gap-2 font-bold text-xs">
-                                <i class="fa-solid fa-plus"></i> 添加新角色模板
-                            </button>
-                        </div>
                         <transition-group name="list" tag="div" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div v-for="t in availableTalents" :key="t.id" class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition flex flex-col group relative">
                                 <div class="flex justify-between items-start mb-2">
                                     <div class="flex items-center gap-2">
                                         <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">{{ t.name.charAt(0) }}</div>
-                                        <div class="font-bold text-sm text-gray-800">{{ t.name }}</div>
-                                    </div>
-                                    <div class="flex gap-1">
-                                        <button @click.stop="prepareEdit(t)" class="text-gray-400 hover:text-blue-500 p-1"><i class="fa-solid fa-pen"></i></button>
-                                        <button @click.stop="deleteTalent(t.id)" class="text-gray-400 hover:text-red-500 p-1"><i class="fa-solid fa-trash"></i></button>
+                                        <div>
+                                            <div class="font-bold text-sm text-gray-800">{{ t.name }}</div>
+                                            <span v-if="t.category" class="inline-block bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded mt-0.5">{{ t.category }}</span>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="bg-gray-50 p-2 rounded-lg text-[11px] text-gray-600 mb-3 flex-1 overflow-hidden h-16 leading-relaxed">
+                                
+                                <div class="bg-gray-50 p-2 rounded-lg text-[11px] text-gray-600 mb-3 h-24 overflow-y-auto leading-relaxed whitespace-pre-wrap border border-gray-100">
                                     {{ t.prompt }}
                                 </div>
+                                
                                 <button @click="recruitTalent(t)" class="w-full bg-indigo-50 border border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white py-1.5 rounded-lg text-xs font-bold transition active:scale-95">
                                     <i class="fa-solid fa-user-plus"></i> 聘用
                                 </button>
                             </div>
                         </transition-group>
-                    </div>
-
-                    <div class="w-full md:w-80 bg-white border-l border-gray-200 flex flex-col shadow-xl z-10 transition-transform duration-300 absolute inset-0 md:static transform" 
-                         :class="isEditing ? 'translate-x-0' : 'translate-x-full md:translate-x-0 md:block md:w-80' + (!isEditing ? ' md:hidden' : '')">
-                         <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                            <h3 class="font-bold text-sm text-gray-700">{{ editForm.id ? '编辑' : '新建' }}</h3>
-                            <button @click="cancelEdit" class="text-gray-500 hover:text-gray-800 text-xs">取消</button>
-                        </div>
-                        <div class="p-4 space-y-4 flex-1 overflow-y-auto">
-                            <div>
-                                <label class="block text-xs font-bold text-gray-500 mb-1">名称</label>
-                                <input v-model="editForm.name" type="text" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500 outline-none">
-                            </div>
-                            <div class="flex-1 flex flex-col h-full">
-                                <label class="block text-xs font-bold text-gray-500 mb-1">人设 Prompt</label>
-                                <textarea v-model="editForm.prompt" class="w-full border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 ring-indigo-500 outline-none flex-1 resize-none min-h-[150px]"></textarea>
-                            </div>
-                        </div>
-                        <div class="p-4 border-t bg-gray-50">
-                            <button @click="saveTalent" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg text-xs font-bold shadow-md transition active:scale-95">保存</button>
+                        
+                        <div v-if="availableTalents.length === 0" class="flex flex-col items-center justify-center py-10 text-gray-400">
+                             <i class="fa-solid fa-filter opacity-30 text-3xl mb-2"></i>
+                             <p class="text-xs">该筛选条件下暂无角色</p>
                         </div>
                     </div>
                 </div>
@@ -201,7 +289,7 @@
                     <h2 class="text-xs font-bold text-gray-400 uppercase">参会人员</h2>
                     <div class="flex gap-2">
                         <button @click="showTalentMarket = true" class="bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 px-2 py-1 rounded text-xs font-bold transition flex items-center gap-1">
-                            <i class="fa-solid fa-store"></i> 人才库
+                            <i class="fa-solid fa-store"></i> 人才市场
                         </button>
                         <button @click="addParticipant" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs"><i class="fa-solid fa-plus"></i></button>
                     </div>
@@ -212,11 +300,13 @@
                             <span class="font-bold text-xs text-yellow-800"><i class="fa-solid fa-microphone mr-1"></i>主持人</span>
                             <span class="text-[10px] bg-yellow-200 px-1.5 rounded text-yellow-800">控场</span>
                         </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-gray-500 font-bold">MODE</span>
-                            <select v-model="hostConfig.type" class="text-[10px] border rounded bg-white px-1 py-0.5 outline-none">
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <select v-model="hostConfig.type" class="text-[10px] border rounded bg-white px-1 py-1 outline-none">
                                 <option value="ai">AI 托管</option>
                                 <option value="human">人工扮演</option>
+                            </select>
+                            <select v-if="hostConfig.type === 'ai'" v-model="hostConfig.modelId" class="text-[10px] border rounded bg-white px-1 py-1 outline-none truncate">
+                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
                             </select>
                         </div>
                     </div>
@@ -226,27 +316,55 @@
                             <span class="font-bold text-xs text-purple-800"><i class="fa-solid fa-pen-nib mr-1"></i>书记员</span>
                             <span class="text-[10px] bg-purple-200 px-1.5 rounded text-purple-800">记录</span>
                         </div>
-                         <div class="flex justify-between items-center">
-                            <span class="text-[10px] text-gray-500 font-bold">MODE</span>
-                            <select v-model="clerkConfig.type" class="text-[10px] border rounded bg-white px-1 py-0.5 outline-none">
+                        <div class="grid grid-cols-2 gap-2 mt-1">
+                            <select v-model="clerkConfig.type" class="text-[10px] border rounded bg-white px-1 py-1 outline-none">
                                 <option value="ai">AI 托管</option>
                                 <option value="human">人工扮演</option>
+                            </select>
+                            <select v-if="clerkConfig.type === 'ai'" v-model="clerkConfig.modelId" class="text-[10px] border rounded bg-white px-1 py-1 outline-none truncate">
+                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
                             </select>
                         </div>
                     </div>
 
-                    <transition-group name="list">
-                        <div v-for="(p, index) in customParticipants" :key="p.tempId || index" class="p-3 border rounded-xl relative group bg-white shadow-sm hover:shadow-md transition">
+                    <transition-group name="list" tag="div" class="space-y-2">
+                        <div v-for="(p, index) in customParticipants" 
+                             :key="p.tempId || index" 
+                             draggable="true"
+                             @dragstart="handleDragStart(index, $event)"
+                             @dragover="handleDragOver($event)"
+                             @drop="handleDrop(index, $event)"
+                             class="draggable-item p-3 border rounded-xl relative group bg-white shadow-sm hover:shadow-md transition">
+                            
+                            <div class="absolute left-1 top-1/2 -translate-y-1/2 drag-handle z-10 p-2">
+                                <i class="fa-solid fa-grip-vertical"></i>
+                            </div>
+
                             <button @click="removeParticipant(index)" class="absolute top-2 right-2 text-gray-300 hover:text-red-500"><i class="fa-solid fa-trash-can"></i></button>
-                            <div class="flex items-center gap-2 mb-2 pr-6">
-                                <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">{{ p.name.charAt(0) }}</div>
-                                <input v-model="p.name" class="font-bold text-sm border-b border-transparent hover:border-gray-300 w-full outline-none">
+                            
+                            <div class="pl-5">
+                                <div class="flex items-center gap-2 mb-2 pr-6">
+                                    <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0">{{ p.name.charAt(0) }}</div>
+                                    
+                                    <div v-if="p.source === 'market'" class="font-bold text-sm text-gray-700 py-1">{{ p.name }}</div>
+                                    <input v-else v-model="p.name" class="font-bold text-sm border-b border-transparent hover:border-gray-300 w-full outline-none focus:border-blue-400 transition" placeholder="角色名称">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-2 mb-2">
+                                    <select v-model="p.type" class="text-[10px] border rounded bg-gray-50 outline-none">
+                                        <option value="ai">AI 托管</option>
+                                        <option value="human">人工扮演</option>
+                                    </select>
+                                    <select v-if="p.type === 'ai'" v-model="p.modelId" class="text-[10px] border rounded bg-gray-50 outline-none truncate">
+                                        <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
+                                    </select>
+                                </div>
+                                
+                                <div v-if="p.source === 'market'" class="w-full text-xs text-gray-500 bg-gray-50 p-2 rounded-lg h-12 overflow-y-auto leading-relaxed">
+                                    {{ p.prompt }}
+                                </div>
+                                <textarea v-else v-model="p.prompt" class="w-full text-xs text-gray-600 border p-2 rounded-lg h-12 resize-none bg-gray-50 focus:bg-white outline-none focus:ring-1 ring-blue-200" placeholder="设定人设..."></textarea>
                             </div>
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-[10px] text-gray-400 font-bold">MODE</span>
-                                <select v-model="p.type" class="text-[10px] border rounded bg-gray-50"><option value="ai">AI</option><option value="human">人工</option></select>
-                            </div>
-                            <textarea v-model="p.prompt" class="w-full text-xs text-gray-600 border p-2 rounded-lg h-12 resize-none bg-gray-50 focus:bg-white outline-none" placeholder="设定人设..."></textarea>
                         </div>
                     </transition-group>
                 </div>
@@ -272,51 +390,90 @@
             </div>
         </header>
 
-        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-6 scroll-smooth">
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 pb-20 md:pb-6 scroll-smooth" @scroll="handleScroll">
             <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
                 <i class="fa-solid fa-comments text-4xl text-gray-200 mb-4"></i>
                 <p class="text-sm text-gray-500">已就绪。仅主持人和书记员在场。</p>
+                <div v-if="hasValidModel" class="mt-2 text-xs bg-green-50 text-green-600 px-3 py-1 rounded-full border border-green-200">
+                    <i class="fa-solid fa-link"></i> 已连接: {{ currentDefaultModelName }}
+                </div>
+                <div v-else class="mt-2 text-xs bg-yellow-50 text-yellow-600 px-3 py-1 rounded-full border border-yellow-200 animate-pulse cursor-pointer" @click="showSettings=true">
+                    <i class="fa-solid fa-exclamation-triangle"></i> 未配置 AI 模型，点击设置
+                </div>
                 <button v-if="status === 'setup'" @click="startMeeting" class="md:hidden bg-blue-600 text-white px-8 py-2 rounded-full shadow-lg font-bold mt-4">开始</button>
             </div>
             
             <div v-for="(msg, index) in messages" :key="index" class="flex flex-col group animate-fade-in">
                 <div v-if="msg.role === '书记员'" class="mx-auto w-[95%] clerk-bubble rounded-xl p-4 shadow-sm text-xs">
                     <div class="text-purple-700 font-bold mb-2 border-b border-purple-200 pb-1 flex justify-between">
-                         <span>书记员总结</span>
+                         <span>{{ msg.content.includes('最终纪要') ? '会议最终纪要' : `第 ${msg.round} 轮会议小结` }}</span>
                          <span class="font-normal opacity-60 text-[10px]">{{ msg.time }}</span>
                     </div>
-                    <div class="prose prose-sm prose-purple max-w-none" v-html="renderMarkdown(msg.content)"></div>
+                    <div class="prose prose-sm prose-purple max-w-none" :class="{'typing-cursor': msg.isStreaming}" v-html="renderMarkdown(msg.content)"></div>
                 </div>
+                
                 <div v-else-if="msg.isSearchAction" class="text-xs text-blue-500 ml-4 mb-2 italic"><i class="fa-solid fa-search fa-spin"></i> 正在搜索...</div>
+                
                 <div v-else class="flex flex-col gap-1 max-w-[90%]" :class="msg.role.includes('主持人') ? 'self-center w-full' : 'self-start'">
                     <div class="text-[10px] text-gray-500 px-1 flex items-center gap-2 mb-0.5" :class="{'justify-center': msg.role.includes('主持人')}">
                         <span class="font-bold text-gray-700">{{ msg.role }}</span>
                         <span class="font-mono text-gray-400 text-[9px]">{{ msg.time }}</span>
                     </div>
-                    <div class="p-3.5 rounded-2xl shadow-sm text-sm border" :class="[msg.role.includes('主持人') ? 'bg-orange-50 text-center' : 'bg-white', msg.isIntervention ? 'ring-2 ring-red-400 bg-red-50' : '']">
-                        <div class="prose prose-sm max-w-none" v-html="renderMarkdown(msg.content)"></div>
+                    <div class="p-3.5 rounded-2xl shadow-sm text-sm border" 
+                         :class="[msg.role.includes('主持人') ? 'bg-orange-50 text-center' : 'bg-white', msg.isIntervention ? 'ring-2 ring-red-400 bg-red-50' : '']">
+                        <div class="prose prose-sm max-w-none" :class="{'typing-cursor': msg.isStreaming}" v-html="renderMarkdown(msg.content)"></div>
                     </div>
                 </div>
             </div>
             
-            <div v-if="isAiTyping" class="flex items-center gap-2 text-gray-400 text-xs ml-4"><span class="font-bold">{{ currentSpeakerName }}</span> 正在输入...</div>
+            <div v-if="isAiTyping && currentSpeakerName !== '书记员'" class="flex items-center gap-2 text-gray-400 text-xs ml-4"><span class="font-bold">{{ currentSpeakerName }}</span> 正在输入...</div>
         </div>
 
         <footer class="p-3 md:p-4 border-t bg-white z-20 shrink-0 pb-20 md:pb-4">
-            <div v-if="status === 'setup' || status === 'finished'" class="flex justify-center">
-                <button @click="startMeeting" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl shadow-lg font-bold"><i class="fa-solid fa-play"></i> {{ status==='setup'?'启动会议':'重启会议' }}</button>
+            <div v-if="status === 'setup'" class="flex justify-center">
+                <button @click="startMeeting" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl shadow-lg font-bold"><i class="fa-solid fa-play"></i> 启动会议</button>
+            </div>
+             <div v-else-if="status === 'finished'" class="flex gap-3">
+                <button @click="startMeeting" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl shadow-lg font-bold flex items-center justify-center gap-2 transition active:scale-[0.98]">
+                    <i class="fa-solid fa-rotate-right"></i> 重启会议
+                </button>
+                 <button @click="downloadChatLog" class="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-xl shadow-lg font-bold flex items-center justify-center gap-2 transition active:scale-[0.98]">
+                    <i class="fa-solid fa-file-export"></i> 下载会议记录
+                </button>
             </div>
             <div v-else class="flex flex-col gap-3">
-                <div v-if="waitingForHuman" class="flex gap-2 bg-green-50 p-2 rounded-xl border border-green-200 items-center shadow-inner">
+                
+                <div v-if="waitingForHuman" class="flex gap-2 bg-green-50 p-2 rounded-xl border border-green-200 items-center shadow-inner relative">
                     <span class="text-xs font-bold text-green-700 px-2 py-1 bg-green-200 rounded whitespace-nowrap">
                         轮到: {{ currentSpeakerName }}
                     </span>
-                    <input v-model="humanInput" @keyup.enter="submitHumanInput" class="flex-1 text-sm bg-transparent outline-none placeholder-green-700/30" :placeholder="`请以 ${currentSpeakerName} 身份发言...`">
+                    
+                    <div class="flex-1 relative">
+                        <ul v-if="showMentionMenu && currentInputTarget==='human'" class="mention-menu">
+                            <li v-for="p in filteredMentionParticipants" :key="p.name" @click="selectMention(p.name)" class="mention-item">
+                                <span class="mention-avatar">{{ p.name.charAt(0) }}</span>
+                                <span>{{ p.name }}</span>
+                            </li>
+                            <li v-if="filteredMentionParticipants.length === 0" class="p-2 text-xs text-gray-400 text-center">无匹配人员</li>
+                        </ul>
+                        <input v-model="humanInput" @input="checkMention($event, 'human')" @keyup.enter="submitHumanInput" class="w-full text-sm bg-transparent outline-none placeholder-green-700/30" :placeholder="`请以 ${currentSpeakerName} 身份发言 (@指定人)...`">
+                    </div>
+                    
                     <button @click="submitHumanInput" class="text-green-600"><i class="fa-solid fa-paper-plane"></i></button>
                 </div>
-                <div v-else class="flex gap-2 items-center">
-                     <input v-model="interventionText" @keyup.enter="triggerIntervention" class="flex-1 border rounded-full px-4 py-2 text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 ring-red-100" placeholder="强制插话...">
-                     <button @click="triggerIntervention" class="bg-white text-red-500 border border-red-200 px-4 py-2 rounded-full text-xs font-bold">插话</button>
+
+                <div v-else class="flex gap-2 items-center relative">
+                    <div class="flex-1 relative">
+                         <ul v-if="showMentionMenu && currentInputTarget==='intervention'" class="mention-menu">
+                             <li v-for="p in filteredMentionParticipants" :key="p.name" @click="selectMention(p.name)" class="mention-item">
+                                 <span class="mention-avatar">{{ p.name.charAt(0) }}</span>
+                                 <span>{{ p.name }}</span>
+                             </li>
+                             <li v-if="filteredMentionParticipants.length === 0" class="p-2 text-xs text-gray-400 text-center">无匹配人员</li>
+                         </ul>
+                         <input v-model="interventionText" @input="checkMention($event, 'intervention')" @keyup.enter="triggerIntervention" class="w-full border rounded-full px-4 py-2 text-sm bg-gray-50 focus:bg-white outline-none focus:ring-2 ring-red-100" placeholder="强制插话 (@指定人回答)...">
+                    </div>
+                    <button @click="triggerIntervention" class="bg-white text-red-500 border border-red-200 px-4 py-2 rounded-full text-xs font-bold">插话</button>
                 </div>
                 
                 <div class="flex justify-between items-center border-t pt-2">
@@ -345,31 +502,30 @@
             <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wider"><i class="fa-solid fa-folder-open mr-2 text-purple-600"></i>会议文件</h3>
             <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
         </div>
-        <div class="flex-1 overflow-y-auto p-4 bg-white pb-20 md:pb-4">
-            <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport)" class="mb-4 bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md transition group">
-                 <div class="flex items-center gap-3">
-                     <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
-                         <i class="fa-solid fa-file-contract text-lg"></i>
+        <div class="flex-1 overflow-y-auto p-4 bg-white space-y-3">
+            <div v-if="finalReport" @click="openFile('会议最终纪要', finalReport, finalReportTime)" class="bg-green-50 border border-green-200 rounded-xl p-3 cursor-pointer hover:shadow-md hover:bg-green-100/50 transition flex items-center gap-3 group">
+                 <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-green-600 shrink-0 group-hover:scale-110 transition-transform">
+                     <i class="fa-solid fa-file-contract"></i>
+                 </div>
+                 <div class="flex-1 min-w-0">
+                     <div class="flex justify-between items-center mb-0.5">
+                        <h4 class="text-xs font-bold text-green-800 truncate mr-2">会议最终纪要</h4>
+                        <span class="text-[9px] text-green-600 opacity-80 font-mono shrink-0 ml-2">{{ finalReportTime }}</span>
                      </div>
-                     <div class="flex-1">
-                         <h4 class="text-sm font-bold text-green-800">最终会议纪要</h4>
-                         <p class="text-[10px] text-gray-500">点击查看完整报告</p>
-                     </div>
-                     <i class="fa-solid fa-chevron-right text-green-300 group-hover:text-green-500"></i>
+                     <div class="text-[10px] text-green-700/60 truncate">点击查看完整报告内容</div>
                  </div>
             </div>
 
-            <div class="space-y-2">
-                <div v-for="(summary, idx) in summaries" :key="idx" @click="openFile(`第 ${summary.round} 轮小结`, summary.content, summary.time)" class="bg-gray-50 border border-gray-100 rounded-xl p-3 cursor-pointer hover:bg-white hover:border-blue-200 hover:shadow-sm transition flex items-center gap-3 group">
-                    <div class="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center text-purple-400 group-hover:text-purple-600 group-hover:bg-purple-100 transition">
-                         <i class="fa-solid fa-file-lines"></i>
+            <div v-for="(summary, idx) in summaries" :key="idx" @click="openFile(`第 ${summary.round} 轮小结`, summary.content, summary.time)" class="bg-white border border-gray-100 rounded-xl p-3 cursor-pointer hover:border-purple-200 hover:bg-purple-50/30 hover:shadow-sm transition flex items-center gap-3 group">
+                <div class="w-9 h-9 rounded-full bg-purple-50 flex items-center justify-center text-purple-500 shrink-0 group-hover:bg-purple-100 group-hover:scale-110 transition-all">
+                     <i class="fa-solid fa-file-lines"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between items-center mb-0.5">
+                        <span class="text-xs font-bold text-gray-700 group-hover:text-purple-700 transition-colors truncate mr-2">第 {{ summary.round }} 轮会议小结</span>
+                        <span class="text-[9px] text-gray-400 font-mono shrink-0 ml-2">{{ summary.time }}</span>
                     </div>
-                    <div class="flex-1">
-                        <div class="flex justify-between items-center">
-                            <span class="text-xs font-bold text-gray-700">第 {{ summary.round }} 轮会议小结</span>
-                            <span class="text-[10px] text-gray-400">{{ summary.time }}</span>
-                        </div>
-                    </div>
+                    <div class="text-[10px] text-gray-400 truncate group-hover:text-purple-400/70 transition-colors">{{ summary.content.substring(0, 30) }}...</div>
                 </div>
             </div>
 
@@ -377,6 +533,12 @@
                 <i class="fa-regular fa-folder-open text-4xl mb-2"></i>
                 <p class="text-xs">暂无文件生成</p>
             </div>
+        </div>
+        
+        <div v-if="status === 'finished'" class="p-4 border-t bg-gray-50 z-10 shrink-0 pb-20 md:pb-4">
+             <button @click="downloadAllFiles" class="w-full bg-purple-100 hover:bg-purple-200 text-purple-700 py-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-2 border border-purple-200 shadow-sm active:scale-[0.98]">
+                <i class="fa-solid fa-file-zipper"></i> 下载全部纪要
+            </button>
         </div>
     </aside>
 
@@ -392,10 +554,34 @@
 
     createApp({
         setup() {
-            // UI
-            const showSettings = ref(false), showTalentMarket = ref(false), isEditing = ref(false);
+            // UI States
+            const showSettings = ref(false), showTalentMarket = ref(false);
             const activeTab = ref('setup'), status = ref('setup'), paused = ref(false);
             const topic = ref('如何利用生成式 AI 优化企业内部知识管理？'), searchQuery = ref('');
+            
+            // Drag & Drop States
+            const draggedItemIndex = ref(null);
+            
+            // @Mention States
+            const showMentionMenu = ref(false);
+            const mentionSearch = ref('');
+            const forcedTurnQueue = ref([]); 
+            const currentInputTarget = ref('human');
+            const isEnding = ref(false);
+
+            // Scroll Control
+            const shouldAutoScroll = ref(true);
+
+            // Model Square States
+            const apiLibrary = ref([]);
+            const modelSearchQuery = ref('');
+            const selectedPlatformFilter = ref('');
+            const currentModelId = ref(null);
+            const globalModelId = ref(null); 
+            
+            // Talent Market States
+            const talentPool = ref([]);
+            const selectedCategoryFilter = ref('');
             
             // Viewer
             const viewingFile = ref(null);
@@ -407,84 +593,202 @@
                 a.download = `${viewingFile.value.title}.md`; a.click();
             };
 
-            // Helper: Generate Full Timestamp (YYYY/MM/DD HH:mm:ss)
             const getCurrentTimestamp = () => {
                 const now = new Date();
                 const pad = n => n.toString().padStart(2, '0');
                 return `${now.getFullYear()}/${pad(now.getMonth() + 1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
             };
 
-            // Config - Default 10 minutes
-            const apiConfig = reactive({ baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' });
             const settings = reactive({ duration: 10, webSearch: false });
-            
-            // Data
-            const talentPool = ref([]);
             const customParticipants = ref([]);
-            const hostConfig = reactive({ name: '主持人', type: 'ai' });
-            const clerkConfig = reactive({ name: '书记员', type: 'ai' });
-            const editForm = reactive({ id: null, name: '', prompt: '' });
+            const hostConfig = reactive({ name: '主持人', type: 'ai', modelId: null });
+            const clerkConfig = reactive({ name: '书记员', type: 'ai', modelId: null });
 
+            // Computed
+            const filteredMentionParticipants = computed(() => {
+                if (!showMentionMenu.value) return [];
+                const search = mentionSearch.value.toLowerCase();
+                return customParticipants.value.filter(p => p.name.toLowerCase().includes(search));
+            });
+
+            const uniqueCategories = computed(() => [...new Set(talentPool.value.map(t => t.category))].filter(Boolean));
             const availableTalents = computed(() => {
                 if (!talentPool.value) return [];
                 const recruitedNames = new Set(customParticipants.value.map(p => p.name));
                 return talentPool.value.filter(talent => {
                     if (recruitedNames.has(talent.name)) return false;
-                    if (searchQuery.value) {
-                        const q = searchQuery.value.toLowerCase();
-                        return talent.name.toLowerCase().includes(q) || talent.prompt.toLowerCase().includes(q);
-                    }
-                    return true;
+                    const matchesCategory = selectedCategoryFilter.value ? talent.category === selectedCategoryFilter.value : true;
+                    const matchesSearch = searchQuery.value 
+                        ? (talent.name.toLowerCase().includes(searchQuery.value.toLowerCase()) || talent.prompt.toLowerCase().includes(searchQuery.value.toLowerCase())) 
+                        : true;
+                    return matchesCategory && matchesSearch;
                 });
+            });
+
+            const uniquePlatforms = computed(() => [...new Set(apiLibrary.value.map(i => i.platform))].filter(Boolean));
+            const filteredModels = computed(() => {
+                let list = apiLibrary.value;
+                if (selectedPlatformFilter.value) list = list.filter(item => item.platform === selectedPlatformFilter.value);
+                if (modelSearchQuery.value) {
+                    const q = modelSearchQuery.value.toLowerCase();
+                    list = list.filter(item => (item.model && item.model.toLowerCase().includes(q)) || (item.remark && item.remark.toLowerCase().includes(q)));
+                }
+                return list;
+            });
+            
+            const hasValidModel = computed(() => apiLibrary.value.length > 0);
+            const currentDefaultModelName = computed(() => {
+                if (apiLibrary.value.length === 0) return '';
+                const m = apiLibrary.value.find(i => i.id === globalModelId.value) || apiLibrary.value[0];
+                return m.model;
             });
 
             onMounted(() => {
                 if (typeof window.TALENT_POOL !== 'undefined' && Array.isArray(window.TALENT_POOL)) talentPool.value = window.TALENT_POOL;
                 else talentPool.value = [];
+
+                if (typeof window.API_LIBRARY !== 'undefined' && Array.isArray(window.API_LIBRARY)) {
+                    apiLibrary.value = window.API_LIBRARY;
+                    if (apiLibrary.value.length > 0) {
+                        globalModelId.value = apiLibrary.value[0].id;
+                        hostConfig.modelId = globalModelId.value;
+                        clerkConfig.modelId = globalModelId.value;
+                    }
+                } else {
+                    apiLibrary.value = [];
+                }
             });
 
-            // Logic
-            const prepareEdit = (t) => { isEditing.value = true; Object.assign(editForm, t ? t : { id: null, name: '', prompt: '' }); };
-            const cancelEdit = () => { isEditing.value = false; editForm.id = null; };
-            const saveTalent = () => {
-                if (!editForm.name || !editForm.prompt) return alert('请填写完整信息');
-                if (editForm.id) {
-                    const idx = talentPool.value.findIndex(t => t.id === editForm.id);
-                    if (idx !== -1) Object.assign(talentPool.value[idx], editForm);
-                } else {
-                    talentPool.value.push({ ...editForm, id: Date.now() });
+            // Scroll Logic
+            const handleScroll = (e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                shouldAutoScroll.value = (scrollHeight - scrollTop - clientHeight) < 30;
+            };
+
+            const scrollToBottom = (force = false) => nextTick(() => { 
+                const c = document.getElementById('chat-container'); 
+                if(c) {
+                    if (force) {
+                        c.scrollTop = c.scrollHeight;
+                        shouldAutoScroll.value = true;
+                    } else if (shouldAutoScroll.value) {
+                        c.scrollTop = c.scrollHeight;
+                    }
                 }
-                cancelEdit();
+            });
+
+            // Drag and Drop Logic
+            const handleDragStart = (index, event) => {
+                draggedItemIndex.value = index;
+                event.dataTransfer.effectAllowed = 'move';
+                event.target.classList.add('dragging');
             };
-            const deleteTalent = (id) => { if(confirm('确认删除?')) talentPool.value = talentPool.value.filter(t => t.id !== id); };
-            const exportTalentPoolJS = () => {
-                const b = new Blob([`window.TALENT_POOL = ${JSON.stringify(talentPool.value, null, 4)};`], { type: 'application/javascript' });
-                const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'talentPool.js'; a.click();
+
+            const handleDragOver = (event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
             };
+
+            const handleDrop = (index, event) => {
+                event.preventDefault();
+                const fromIndex = draggedItemIndex.value;
+                const toIndex = index;
+                
+                document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+
+                if (fromIndex === null || fromIndex === toIndex) return;
+
+                let currentSpeakerObject = null;
+                if (status.value === 'running' && speakerIndex.value !== -1 && speakerIndex.value < customParticipants.value.length) {
+                    currentSpeakerObject = customParticipants.value[speakerIndex.value];
+                }
+
+                const itemToMove = customParticipants.value.splice(fromIndex, 1)[0];
+                customParticipants.value.splice(toIndex, 0, itemToMove);
+
+                if (currentSpeakerObject) {
+                    const newIndex = customParticipants.value.indexOf(currentSpeakerObject);
+                    speakerIndex.value = newIndex;
+                } 
+
+                draggedItemIndex.value = null;
+            };
+
+
+            // @Mention Logic
+            const checkMention = (e, type) => {
+                currentInputTarget.value = type;
+                const val = e.target.value;
+                const cursorPos = e.target.selectionStart;
+                const lastAtPos = val.lastIndexOf('@', cursorPos - 1);
+                if (lastAtPos !== -1) {
+                    const textAfterAt = val.slice(lastAtPos + 1, cursorPos);
+                    if (!textAfterAt.includes(' ')) {
+                        showMentionMenu.value = true;
+                        mentionSearch.value = textAfterAt;
+                        return;
+                    }
+                }
+                showMentionMenu.value = false;
+            };
+
+            const selectMention = (name) => {
+                const isHuman = currentInputTarget.value === 'human';
+                const val = isHuman ? humanInput.value : interventionText.value;
+                const lastAtPos = val.lastIndexOf('@'); 
+                if (lastAtPos !== -1) {
+                    const prefix = val.slice(0, lastAtPos);
+                    const newVal = `${prefix}@${name} `;
+                    if(isHuman) humanInput.value = newVal;
+                    else interventionText.value = newVal;
+                    showMentionMenu.value = false;
+                }
+            };
+
+            const setGlobalModel = (id) => { globalModelId.value = id; };
+            const selectModel = (item) => { currentModelId.value = item.id; }; 
+
             const recruitTalent = (t) => {
-                customParticipants.value.push({ name: t.name, prompt: t.prompt, type: 'ai', tempId: Date.now() });
+                customParticipants.value.push({ name: t.name, prompt: t.prompt, type: 'ai', modelId: globalModelId.value, tempId: Date.now(), source: 'market' });
+                if (window.innerWidth < 768) showTalentMarket.value = false;
+            };
+            const batchRecruit = () => {
+                if(availableTalents.value.length === 0) return;
+                if(!confirm(`确认将当前列表的 ${availableTalents.value.length} 位角色全部加入会议？`)) return;
+                availableTalents.value.forEach(t => {
+                   customParticipants.value.push({ name: t.name, prompt: t.prompt, type: 'ai', modelId: globalModelId.value, tempId: Date.now() + Math.random(), source: 'market' }); 
+                });
                 if (window.innerWidth < 768) showTalentMarket.value = false;
             };
 
-            const removeParticipant = i => customParticipants.value.splice(i, 1);
-            const addParticipant = () => customParticipants.value.push({ name: '新角色', type: 'ai', prompt: '', tempId: Date.now() });
+            const allRoles = computed(() => customParticipants.value);
+            
+            const removeParticipant = (index) => { 
+                if (status.value === 'running' && speakerIndex.value !== -1) {
+                    if (index <= speakerIndex.value) {
+                        speakerIndex.value--;
+                    }
+                }
+                customParticipants.value.splice(index, 1);
+            };
+            
+            const addParticipant = () => customParticipants.value.push({ name: '新角色', type: 'ai', prompt: '', modelId: globalModelId.value, tempId: Date.now(), source: 'custom' });
 
             // Runtime
             const messages = ref([]), summaries = ref([]), backgroundFiles = ref([]);
-            const currentRound = ref(1), speakerIndex = ref(-1), finalReport = ref(null);
+            const currentRound = ref(1), speakerIndex = ref(-1), finalReport = ref(null), finalReportTime = ref('');
             const isAiTyping = ref(false), humanInput = ref(''), interventionText = ref('');
+            const apiConfig = reactive({ baseUrl: '', apiKey: '', model: '' }); // Legacy placeholder
             
-            // Time Logic
             const timeLeft = ref(null); 
             const isUnlimited = ref(false); 
             const elapsedTime = ref(0);     
             
             let timerInterval = null, turnTimer = null;
 
-            const allRoles = computed(() => customParticipants.value);
             const currentSpeakerName = computed(() => {
                 if (speakerIndex.value === -1) return hostConfig.name;
-                if (speakerIndex.value === allRoles.value.length) return clerkConfig.name;
+                if (speakerIndex.value >= allRoles.value.length) return clerkConfig.name;
                 return allRoles.value[speakerIndex.value]?.name || '未知';
             });
             
@@ -496,16 +800,20 @@
                 return false;
             });
 
-            const statusText = computed(() => paused.value ? '暂停' : (status.value === 'running' ? '进行中' : '设置中'));
-            const statusColor = computed(() => paused.value ? 'bg-yellow-100 text-yellow-700' : (status.value === 'running' ? 'bg-green-100 text-green-700 animate-pulse' : 'bg-blue-100 text-blue-700'));
+            const statusText = computed(() => isEnding.value ? '收尾中...' : (paused.value ? '暂停' : (status.value === 'running' ? '进行中' : '设置中')));
+            const statusColor = computed(() => isEnding.value ? 'bg-orange-100 text-orange-700' : (paused.value ? 'bg-yellow-100 text-yellow-700' : (status.value === 'running' ? 'bg-green-100 text-green-700 animate-pulse' : 'bg-blue-100 text-blue-700')));
             
             watch(status, v => { if(v==='running') activeTab.value='chat'; });
 
             const startMeeting = () => {
                 if (!topic.value.trim()) return alert("请输入议题");
-                showSettings.value = false; status.value = 'running'; paused.value = false;
+                if (apiLibrary.value.length === 0) {
+                    alert("请先在模型广场配置至少一个 AI 模型！");
+                    showSettings.value = true;
+                    return;
+                }
+                showSettings.value = false; status.value = 'running'; paused.value = false; isEnding.value = false;
                 
-                // Initialize Time Logic
                 if (!settings.duration || settings.duration <= 0) {
                     isUnlimited.value = true;
                     elapsedTime.value = 0;
@@ -516,14 +824,13 @@
                 }
 
                 messages.value = []; summaries.value = [];
-                finalReport.value = null; currentRound.value = 1; activeTab.value = 'chat';
+                finalReport.value = null; finalReportTime.value = ''; currentRound.value = 1; activeTab.value = 'chat';
                 
                 if (timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(() => { 
                     if (!paused.value && status.value === 'running') {
-                        if (isUnlimited.value) {
-                            elapsedTime.value++;
-                        } else {
+                        if (isUnlimited.value) elapsedTime.value++;
+                        else {
                             timeLeft.value--; 
                             if (timeLeft.value <= 0) endMeeting();
                         }
@@ -534,21 +841,13 @@
                 processTurn();
             };
 
-            // 核心功能：延时 (Extend Meeting)
             const extendMeeting = () => {
                 if (isUnlimited.value) return; 
-                
-                // 计算当前已消耗时间：总设定时间 - 剩余时间
                 const totalSeconds = settings.duration * 60;
                 const currentLeft = timeLeft.value || 0;
                 elapsedTime.value = totalSeconds - currentLeft;
-
-                // 切换模式
                 isUnlimited.value = true;
                 timeLeft.value = null;
-                
-                // 视觉反馈（可选，这里只在控制台输出，避免弹窗打断）
-                console.log("会议已切换为延时无限模式");
             };
 
             const processTurn = async () => {
@@ -557,62 +856,93 @@
                 if (speakerIndex.value === -1) {
                     if (hostConfig.type === 'human') return; 
                     const content = currentRound.value === 1 ? `会议正式开始。议题：${topic.value}。` : `第 ${currentRound.value} 轮讨论开始。`;
-                    addMessage(hostConfig.name, content, true);
+                    isAiTyping.value = true;
+                    await generateAIResponse({name: hostConfig.name, prompt: '主持人', type: 'ai', modelId: hostConfig.modelId}, content); 
+                    isAiTyping.value = false;
                     nextTurn();
                     return;
                 }
 
-                if (speakerIndex.value === allRoles.value.length) {
+                if (speakerIndex.value >= allRoles.value.length) {
                     if (clerkConfig.type === 'human') return; 
                     await performClerkSummary();
                     return;
                 }
 
                 const role = allRoles.value[speakerIndex.value];
+                if (!role) {
+                    nextTurn(); 
+                    return;
+                }
+
                 if (role.type === 'human') return; 
-                isAiTyping.value = true; scrollToBottom();
+                isAiTyping.value = true; 
                 await generateAIResponse(role);
-                isAiTyping.value = false; nextTurn();
+                isAiTyping.value = false; 
+                nextTurn();
             };
 
             const nextTurn = () => { 
-                speakerIndex.value++; 
+                if (isEnding.value) {
+                    performFinalClosing();
+                    return;
+                }
+                
+                if (forcedTurnQueue.value.length > 0) {
+                    speakerIndex.value = forcedTurnQueue.value.shift();
+                } else {
+                    speakerIndex.value++; 
+                }
                 turnTimer = setTimeout(() => processTurn(), 800); 
+            };
+
+            const parseMentionsAndQueue = (text) => {
+                const mentions = text.match(/@([\u4e00-\u9fa5a-zA-Z0-9_]+)/g);
+                if (mentions) {
+                    mentions.forEach(mentionStr => {
+                        const targetName = mentionStr.substring(1);
+                        const targetIndex = customParticipants.value.findIndex(p => p.name === targetName);
+                        if (targetIndex !== -1) {
+                            forcedTurnQueue.value.push(targetIndex);
+                        }
+                    });
+                }
             };
 
             const submitHumanInput = () => {
                 if(!humanInput.value.trim()) return;
+                
                 let name = '';
                 if(speakerIndex.value === -1) name = hostConfig.name;
-                else if(speakerIndex.value === allRoles.value.length) name = clerkConfig.name;
-                else name = allRoles.value[speakerIndex.value].name;
+                else if(speakerIndex.value >= allRoles.value.length) name = clerkConfig.name;
+                else name = allRoles.value[speakerIndex.value]?.name || '神秘人';
                 
+                parseMentionsAndQueue(humanInput.value);
+
                 addMessage(name, humanInput.value);
                 
-                if (speakerIndex.value === allRoles.value.length) {
+                if (speakerIndex.value >= allRoles.value.length) {
                     summaries.value.push({round:currentRound.value, content:humanInput.value, time:getCurrentTimestamp()});
-                    currentRound.value++; 
-                    speakerIndex.value = -1; 
+                    
+                    if (forcedTurnQueue.value.length > 0) {
+                        speakerIndex.value = forcedTurnQueue.value.shift();
+                    } else {
+                        currentRound.value++; 
+                        speakerIndex.value = -1; 
+                    }
                     setTimeout(() => processTurn(), 800);
                 } else {
                     nextTurn();
                 }
                 humanInput.value = '';
+                showMentionMenu.value = false; 
             };
-
-            const generateAIResponse = async (role) => {
-                const sys = `角色:${role.name}。人设:${role.prompt}。议题:${topic.value}。材料:${backgroundFiles.value.map(f=>f.content).join('\n').substring(0,800)}...`;
-                const last = summaries.value.length > 0 ? summaries.value[summaries.value.length-1].content : "无";
-                const log = messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n');
-                let user = `[上一轮]:${last}\n[本轮]:${log}\n请发言。`;
-                if (messages.value.length > 0 && messages.value[messages.value.length-1].isIntervention) user += `\n!!! 紧急：回应主持人插话 !!!`;
-                if (settings.webSearch && Math.random()>0.7 && !apiConfig.apiKey) { messages.value.push({role:role.name, content:'', isSearchAction:true, round:currentRound.value}); await new Promise(r=>setTimeout(r,1000)); }
-                const txt = await callLLM(sys, user);
-                addMessage(role.name, txt);
-            };
-
+            
             const triggerIntervention = () => {
                 if(!interventionText.value.trim()) return;
+                
+                parseMentionsAndQueue(interventionText.value);
+
                 messages.value.push({
                     role: hostConfig.name + '(插话)', 
                     content: interventionText.value, 
@@ -620,69 +950,294 @@
                     isIntervention: true, 
                     round: currentRound.value
                 });
-                interventionText.value=''; scrollToBottom();
+                interventionText.value=''; 
+                scrollToBottom(false); 
+                showMentionMenu.value = false;
+
                 if(!isAiTyping.value && status.value==='running') { 
                     clearTimeout(turnTimer); 
-                    if(speakerIndex.value>=0 && speakerIndex.value<allRoles.value.length && allRoles.value[speakerIndex.value].type === 'ai') processTurn(); 
+                    nextTurn();
                 }
             };
 
+            const getModelConfig = (modelId) => {
+                const m = apiLibrary.value.find(x => x.id === modelId);
+                return m || apiLibrary.value[0]; 
+            };
+
+            const generateAIResponse = async (role, fixedContent = null) => {
+                const sys = `角色:${role.name}。人设:${role.prompt}。议题:${topic.value}。材料:${backgroundFiles.value.map(f=>f.content).join('\n').substring(0,800)}...`;
+                const last = summaries.value.length > 0 ? summaries.value[summaries.value.length-1].content : "无";
+                const log = messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n');
+                let user = `[上一轮]:${last}\n[本轮]:${log}\n请发言。`;
+                if (messages.value.length > 0 && messages.value[messages.value.length-1].isIntervention) user += `\n!!! 紧急：回应主持人插话 !!!`;
+                
+                addPlaceholderMessage(role.name);
+                const activeMessage = messages.value[messages.value.length - 1];
+
+                if (fixedContent) {
+                    await simulateStream(fixedContent, (chunk) => {
+                        activeMessage.content += chunk; 
+                        scrollToBottom(false);
+                    });
+                    activeMessage.isStreaming = false;
+                    return;
+                }
+
+                if (settings.webSearch && Math.random()>0.7 && apiLibrary.value.length === 0) { 
+                    messages.value.push({role:role.name, content:'', isSearchAction:true, round:currentRound.value}); 
+                    scrollToBottom(false); 
+                    await new Promise(r=>setTimeout(r,1000)); 
+                }
+
+                const config = getModelConfig(role.modelId);
+                await callLLMStream(sys, user, (chunk) => {
+                    activeMessage.content += chunk; 
+                    scrollToBottom(false);
+                }, config);
+                
+                activeMessage.isStreaming = false;
+            };
+
             const performClerkSummary = async () => {
-                isAiTyping.value=true;
-                const txt = await callLLM("你是书记员", `总结本轮:\n${messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n')}`);
-                addMessage(clerkConfig.name, txt);
-                summaries.value.push({round:currentRound.value, content:txt, time:getCurrentTimestamp()});
-                isAiTyping.value=false; currentRound.value++; speakerIndex.value=-1; 
+                isAiTyping.value = true;
+                const sys = "你是书记员";
+                const user = `总结本轮:\n${messages.value.filter(m=>m.round===currentRound.value).map(m=>`${m.role}:${m.content}`).join('\n')}`;
+                
+                addPlaceholderMessage(clerkConfig.name);
+                const activeMessage = messages.value[messages.value.length - 1]; 
+
+                const config = getModelConfig(clerkConfig.modelId);
+                let fullContent = "";
+                await callLLMStream(sys, user, (chunk) => {
+                    fullContent += chunk;
+                    activeMessage.content += chunk; 
+                    scrollToBottom(false);
+                }, config);
+                
+                activeMessage.isStreaming = false;
+                
+                if (forcedTurnQueue.value.length > 0) {
+                    summaries.value.push({round:currentRound.value, content:fullContent, time:getCurrentTimestamp()});
+                    speakerIndex.value = forcedTurnQueue.value.shift();
+                } else {
+                    summaries.value.push({round:currentRound.value, content:fullContent, time:getCurrentTimestamp()});
+                    currentRound.value++; 
+                    speakerIndex.value = -1; 
+                }
+                
                 setTimeout(() => processTurn(), 1000);
             };
 
             const endMeeting = async () => {
-                if(status.value==='finished') return; paused.value=true; status.value='finished'; clearInterval(timerInterval); clearTimeout(turnTimer);
-                isAiTyping.value=true; addMessage(hostConfig.name, '会议结束，生成最终纪要...', true);
-                finalReport.value = await callLLM("秘书", `生成Markdown纪要:\n${summaries.value.map(s=>`R${s.round}:${s.content}`).join('\n')}`);
-                isAiTyping.value=false; if(window.innerWidth<768) setTimeout(()=>alert("请查看白板"),500);
+                if(status.value==='finished') return; 
+                
+                if(timerInterval) clearInterval(timerInterval);
+
+                if (isAiTyping.value) {
+                    isEnding.value = true;
+                    return;
+                }
+
+                await performFinalClosing();
             };
 
-            const callLLM = async (sys, usr) => {
-                if(!apiConfig.apiKey) return new Promise(r=>setTimeout(()=>{
-                    if(usr.includes("紧急")) r("收到。我认为...");
-                    else if(sys.includes("书记员")) r(`**本轮小结**：讨论了${topic.value}。`);
-                    else if(usr.includes("生成Markdown")) r(`# 会议纪要\n达成一致。`);
-                    else r(["风险太大了。","我同意。","成本是个问题。"][Math.floor(Math.random()*3)]);
-                },1000));
+            const performFinalClosing = async () => {
+                status.value = 'finished';
+                paused.value = true;
+                isEnding.value = false;
+                clearTimeout(turnTimer);
+                
+                isAiTyping.value = true;
+                
+                // 1. Host Closing Statement
+                addPlaceholderMessage(hostConfig.name);
+                const activeHostMsg = messages.value[messages.value.length - 1]; 
+                const configHost = getModelConfig(hostConfig.modelId);
+                
+                await callLLMStream("主持人", "会议结束，请做简短总结并宣布生成最终纪要。", (chunk) => {
+                    activeHostMsg.content += chunk; 
+                    scrollToBottom(false);
+                }, configHost);
+                activeHostMsg.isStreaming = false;
+
+                // 2. Clerk Final Report Generation (Streamed to Chat first)
+                await new Promise(r => setTimeout(r, 500));
+                
+                addPlaceholderMessage(clerkConfig.name);
+                const activeClerkMsg = messages.value[messages.value.length - 1];
+                activeClerkMsg.content = "**[正在生成会议最终纪要]**\n\n"; // Header to distinguish
+
+                const sys = "专业秘书";
+                const user = `生成Markdown纪要:\n${summaries.value.map(s=>`R${s.round}:${s.content}`).join('\n')}`;
+                const configClerk = getModelConfig(clerkConfig.modelId);
+                
+                let fullReportContent = "";
+                await callLLMStream(sys, user, (chunk) => {
+                    fullReportContent += chunk;
+                    activeClerkMsg.content += chunk;
+                    scrollToBottom(false);
+                }, configClerk);
+                
+                activeClerkMsg.isStreaming = false;
+
+                // 3. Sync to Sidebar and Finish
+                finalReport.value = fullReportContent;
+                finalReportTime.value = getCurrentTimestamp();
+                
+                isAiTyping.value=false; 
+
+                // 4. Switch Tab / Alert
+                if(window.innerWidth >= 768) activeTab.value = 'board';
+                if(window.innerWidth < 768) setTimeout(()=>alert("会议结束，已生成最终纪要"), 500);
+            };
+
+            const addPlaceholderMessage = (role) => {
+                messages.value.push({
+                    role: role,
+                    content: '',
+                    time: getCurrentTimestamp(),
+                    round: currentRound.value,
+                    isStreaming: true
+                });
+                scrollToBottom(false); // 保持滚动不强制置底
+            };
+
+            const callLLMStream = async (sys, usr, onChunk, config) => {
+                if (!config || !config.key) {
+                    let mockResponse = "（未配置模型 API，正在模拟输出...）";
+                    await simulateStream(mockResponse, onChunk);
+                    return;
+                }
+
                 try {
-                    const res = await fetch(`${apiConfig.baseUrl||'https://api.openai.com/v1'}/chat/completions`, {
-                        method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${apiConfig.apiKey}`},
-                        body:JSON.stringify({model:apiConfig.model, messages:[{role:'system',content:sys},{role:'user',content:usr}], temperature:0.7})
+                    const response = await fetch(`${config.url}/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${config.key}`
+                        },
+                        body: JSON.stringify({
+                            model: config.model,
+                            messages: [
+                                { role: 'system', content: sys },
+                                { role: 'user', content: usr }
+                            ],
+                            temperature: 0.7,
+                            stream: true 
+                        })
                     });
-                    const d=await res.json(); return d.choices[0].message.content;
-                } catch(e) { return `Error:${e.message}`; }
+
+                    if (!response.ok) {
+                        onChunk(`[Error: ${response.status} ${response.statusText}]`);
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    let buffer = "";
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        const chunk = new TextDecoder().decode(value);
+                        buffer += chunk;
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); 
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed.startsWith("data: ")) continue;
+                            const data = trimmed.slice(6);
+                            if (data === "[DONE]") return;
+                            try {
+                                const json = JSON.parse(data);
+                                const content = json.choices[0]?.delta?.content || "";
+                                if (content) onChunk(content);
+                            } catch (e) { console.error(e); }
+                        }
+                    }
+                } catch (e) {
+                    onChunk(`[Network Error: ${e.message}]`);
+                }
+            };
+
+            const simulateStream = (text, callback) => {
+                return new Promise((resolve) => {
+                    let i = 0;
+                    const interval = setInterval(() => {
+                        if (i >= text.length) {
+                            clearInterval(interval);
+                            resolve();
+                        } else {
+                            const chunkSize = Math.floor(Math.random() * 3) + 1;
+                            const chunk = text.slice(i, i + chunkSize);
+                            callback(chunk);
+                            i += chunkSize;
+                        }
+                    }, 30); 
+                });
             };
 
             const addMessage = (r,c) => { 
-                messages.value.push({
-                    role:r, 
-                    content:c, 
-                    time: getCurrentTimestamp(), // Use Full Time
-                    round:currentRound.value
-                }); 
-                scrollToBottom(); 
+                messages.value.push({ role:r, content:c, time: getCurrentTimestamp(), round:currentRound.value, isStreaming: false }); 
+                scrollToBottom(false); 
             };
             
-            const scrollToBottom = () => nextTick(() => { const c=document.getElementById('chat-container'); if(c) c.scrollTop=c.scrollHeight; });
             const handleFileUpload = async(e) => { for(let f of e.target.files) backgroundFiles.value.push({name:f.name, content:await f.text()}); };
             const removeFile = i => backgroundFiles.value.splice(i,1);
             const togglePause = () => { paused.value=!paused.value; if(!paused.value && status.value==='running' && !waitingForHuman.value) processTurn(); };
             const formatTime = s => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
-            const renderMarkdown = t => marked.parse(t);
+            const renderMarkdown = t => marked.parse(t || ''); 
             const exportReport = () => { if(!finalReport.value) return; const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([finalReport.value],{type:'text/markdown'})); a.download='Report.md'; a.click(); };
 
+            // Download Functions
+            const downloadChatLog = () => {
+                let content = `# 会议记录：${topic.value}\n\n`;
+                messages.value.forEach(msg => {
+                    content += `### [${msg.time}] ${msg.role}\n${msg.content}\n\n---\n\n`;
+                });
+                const blob = new Blob([content], {type: 'text/markdown'});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `会议记录_${new Date().getTime()}.md`;
+                a.click();
+            };
+
+            const downloadAllFiles = () => {
+                let content = `# 会议纪要汇总：${topic.value}\n\n`;
+                
+                if (finalReport.value) {
+                    content += `## 会议最终纪要\n生成时间：${finalReportTime.value}\n\n${finalReport.value}\n\n====================\n\n`;
+                }
+                
+                summaries.value.forEach(s => {
+                    content += `## 第 ${s.round} 轮小结\n时间：${s.time}\n\n${s.content}\n\n--------------------\n\n`;
+                });
+                
+                const blob = new Blob([content], {type: 'text/markdown'});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `会议纪要汇总_${new Date().getTime()}.md`;
+                a.click();
+            };
+
             return {
-                showSettings, showTalentMarket, isEditing, activeTab, status, paused, topic, apiConfig, settings, talentPool, searchQuery, availableTalents, editForm,
-                customParticipants, messages, summaries, backgroundFiles, currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport,
+                showSettings, showTalentMarket, activeTab, status, paused, topic, settings, talentPool, searchQuery, availableTalents,
+                customParticipants, messages, summaries, backgroundFiles, currentRound, timeLeft, isAiTyping, humanInput, interventionText, finalReport, finalReportTime,
                 statusText, statusColor, currentSpeakerName, waitingForHuman, hostConfig, clerkConfig, viewingFile, isUnlimited, elapsedTime,
-                prepareEdit, cancelEdit, saveTalent, deleteTalent, exportTalentPoolJS, recruitTalent, openFile, downloadCurrentFile,
-                addParticipant, removeParticipant, startMeeting, extendMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport
+                // Mention Props
+                showMentionMenu, filteredMentionParticipants, checkMention, selectMention, currentInputTarget,
+                // Model Square Props
+                modelSearchQuery, selectedPlatformFilter, filteredModels, uniquePlatforms, currentModelId, globalModelId, apiLibrary,
+                // Talent Market Enhanced Props
+                selectedCategoryFilter, uniqueCategories, batchRecruit,
+                recruitTalent, openFile, downloadCurrentFile,
+                addParticipant, removeParticipant, startMeeting, extendMeeting, endMeeting, togglePause, handleFileUpload, removeFile, submitHumanInput, triggerIntervention, formatTime, renderMarkdown, exportReport,
+                selectModel, handleScroll, setGlobalModel, apiConfig,
+                hasValidModel, currentDefaultModelName,
+                // Drag & Drop
+                handleDragStart, handleDragOver, handleDrop,
+                // New Downloads
+                downloadChatLog, downloadAllFiles
             };
         }
     }).mount('#app');
