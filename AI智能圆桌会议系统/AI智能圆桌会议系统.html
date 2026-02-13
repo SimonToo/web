@@ -245,7 +245,7 @@
                                             <div class="flex flex-wrap gap-1 mt-0.5">
                                                 <span v-if="t.category" class="inline-block bg-gray-100 text-gray-500 text-[9px] px-1.5 py-0.5 rounded">{{ t.category }}</span>
                                                 <span v-if="t.modelId" class="inline-block bg-indigo-50 text-indigo-600 border border-indigo-100 text-[9px] px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" :title="'已绑定模型: ' + getModelName(t.modelId)">
-                                                    <i class="fa-solid fa-robot mr-0.5"></i>{{ getModelName(t.modelId).split('/').pop() }}
+                                                    <i class="fa-solid fa-robot mr-0.5"></i>{{ getModelName(t.modelId) }}
                                                 </span>
                                             </div>
                                         </div>
@@ -317,12 +317,12 @@
                                 <option value="human">人工扮演</option>
                             </select>
                             <select v-if="hostConfig.type === 'ai'" v-model="hostConfig.modelId" class="text-[10px] border rounded bg-white px-1 py-1 outline-none truncate">
-                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
+                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model }} ({{ m.platform }})</option>
                             </select>
                         </div>
                         <div v-else-if="hostConfig.type === 'ai'" class="mt-1 flex items-center gap-2">
                             <span class="text-[10px] bg-white border border-yellow-100 px-2 py-0.5 rounded text-yellow-700/70 truncate flex items-center gap-1 w-full" :title="getModelName(hostConfig.modelId)">
-                                <i class="fa-solid fa-robot"></i> {{ getModelName(hostConfig.modelId).split('/').pop() || '未选择模型' }}
+                                <i class="fa-solid fa-robot"></i> {{ getModelName(hostConfig.modelId) || '未选择模型' }}
                             </span>
                         </div>
                     </div>
@@ -339,12 +339,12 @@
                                 <option value="human">人工扮演</option>
                             </select>
                             <select v-if="clerkConfig.type === 'ai'" v-model="clerkConfig.modelId" class="text-[10px] border rounded bg-white px-1 py-1 outline-none truncate">
-                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
+                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model }} ({{ m.platform }})</option>
                             </select>
                         </div>
                         <div v-else-if="clerkConfig.type === 'ai'" class="mt-1 flex items-center gap-2">
                             <span class="text-[10px] bg-white border border-purple-100 px-2 py-0.5 rounded text-purple-700/70 truncate flex items-center gap-1 w-full" :title="getModelName(clerkConfig.modelId)">
-                                <i class="fa-solid fa-robot"></i> {{ getModelName(clerkConfig.modelId).split('/').pop() || '未选择模型' }}
+                                <i class="fa-solid fa-robot"></i> {{ getModelName(clerkConfig.modelId) || '未选择模型' }}
                             </span>
                         </div>
                     </div>
@@ -375,7 +375,7 @@
                                     
                                     <div v-if="!showDetailedConfig && p.type === 'ai'" class="ml-8">
                                          <span class="text-[9px] bg-gray-50 border px-1.5 py-0.5 rounded text-gray-500 truncate inline-flex items-center gap-1 max-w-full" :title="getModelName(p.modelId)">
-                                            <i class="fa-solid fa-robot text-gray-400"></i> {{ getModelName(p.modelId).split('/').pop() || '默认模型' }}
+                                            <i class="fa-solid fa-robot text-gray-400"></i> {{ getModelName(p.modelId) || '默认模型' }}
                                         </span>
                                     </div>
                                 </div>
@@ -387,7 +387,7 @@
                                             <option value="human">人工扮演</option>
                                         </select>
                                         <select v-if="p.type === 'ai'" v-model="p.modelId" class="text-[10px] border rounded bg-gray-50 outline-none truncate" :title="getModelName(p.modelId)">
-                                            <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model.split('/').pop() }}</option>
+                                            <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model }} ({{ m.platform }})</option>
                                         </select>
                                     </div>
                                     
@@ -529,7 +529,7 @@
         </footer>
     </main>
 
-    <aside class="flex-col bg-white border-l border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20" :class="activeTab === 'board' ? 'flex' : 'hidden'">
+    <aside class="flex-col bg-white border-r border-gray-200 h-full w-full md:w-1/4 md:flex shadow-sm z-20" :class="activeTab === 'board' ? 'flex' : 'hidden'">
         <div class="p-4 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
             <h3 class="font-bold text-gray-700 text-xs uppercase tracking-wider"><i class="fa-solid fa-folder-open mr-2 text-purple-600"></i>会议文件</h3>
             <span class="text-[10px] text-gray-400 bg-white px-2 py-0.5 rounded border">Sync</span>
@@ -677,14 +677,16 @@
             const currentDefaultModelName = computed(() => {
                 if (apiLibrary.value.length === 0) return '';
                 const m = apiLibrary.value.find(i => i.id === globalModelId.value) || apiLibrary.value[0];
-                return m.model;
+                // 修改：完整显示模型名称和平台名称
+                return `${m.model} (${m.platform})`;
             });
 
             // 获取模型名称辅助函数
             const getModelName = (id) => {
                 if (!id) return '';
                 const m = apiLibrary.value.find(i => i.id === id);
-                return m ? m.model : '';
+                // 修改：完整显示模型名称和平台名称
+                return m ? `${m.model} (${m.platform})` : '';
             };
 
             onMounted(() => {
