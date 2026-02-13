@@ -306,7 +306,7 @@
                         <div class="relative mb-6">
                             <select v-model="batchModelId" class="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:ring-2 ring-indigo-200 bg-white">
                                 <option value="">跟随系统默认 (清除绑定)</option>
-                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model }}</option>
+                                <option v-for="m in apiLibrary" :key="m.id" :value="m.id">{{ m.model }} ({{ m.platform }})</option>
                             </select>
                         </div>
                         
@@ -412,7 +412,8 @@
             const getModelName = (id) => {
                 if (!id) return '';
                 const m = apiLibrary.value.find(i => i.id === id);
-                return m ? m.model : '未知模型';
+                // 修改：完整显示模型名称和平台名称
+                return m ? `${m.model} (${m.platform})` : '未知模型';
             };
 
             const openDrawer = (item) => {
