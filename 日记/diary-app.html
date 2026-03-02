@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的日记本</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .toolbar { padding: 20px 30px; background: #f8f9fa; border-bottom: 1px solid #e9ecef; display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .btn-danger { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        input[type="file"] { display: none; }
+        .main-content { display: grid; grid-template-columns: 300px 1fr; min-height: 600px; }
+        .sidebar { background: #f8f9fa; border-right: 1px solid #e9ecef; padding: 20px; overflow-y: auto; max-height: 700px; }
+        .diary-list { list-style: none; }
+        .diary-item { background: white; border-radius: 10px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: all 0.3s; border: 2px solid transparent; }
+        .diary-item:hover { border-color: #667eea; }
+        .diary-item.active { border-color: #667eea; background: #f5f7ff; }
+        .diary-title { font-weight: 600; color: #333; margin-bottom: 5px; }
+        .diary-date { font-size: 0.85em; color: #6c757d; }
+        .diary-preview { font-size: 0.9em; color: #666; margin-top: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .content-area { padding: 30px; background: white; }
+        .empty-state { text-align: center; padding: 100px 20px; color: #6c757d; }
+        .empty-state h2 { color: #495057; margin-bottom: 10px; }
+        .diary-form { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 25px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #495057; }
+        .form-group input, .form-group textarea { width: 100%; padding: 12px 15px; border: 2px solid #e9ecef; border-radius: 10px; font-size: 15px; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
+        .form-group textarea { min-height: 300px; resize: vertical; line-height: 1.8; }
+        .form-actions { display: flex; gap: 15px; justify-content: flex-end; margin-top: 30px; }
+        .diary-view { max-width: 800px; margin: 0 auto; background: white; border-radius: 15px; padding: 40px; box-shadow: 0 5px 20px rgba(0,0,0,0.05); }
+        .diary-view-header { border-bottom: 2px solid #e9ecef; padding-bottom: 20px; margin-bottom: 30px; }
+        .diary-view-title { font-size: 2em; color: #333; margin-bottom: 10px; }
+        .diary-view-date { color: #6c757d; }
+        .diary-view-content { font-size: 1.1em; line-height: 2; color: #495057; white-space: pre-wrap; }
+        .diary-view-actions { margin-top: 30px; padding-top: 20px; border-top: 2px solid #e9ecef; display: flex; gap: 15px; justify-content: flex-end; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal-content { background: white; border-radius: 15px; padding: 30px; max-width: 400px; width: 90%; text-align: center; }
+        .modal-actions { display: flex; gap: 10px; justify-content: center; margin-top: 20px; }
+        .search-box { padding: 20px 30px; background: #f8f9fa; }
+        .search-box input { width: 100%; padding: 10px 15px; border: 2px solid #e9ecef; border-radius: 8px; font-size: 14px; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 15px 25px; border-radius: 10px; color: white; font-weight: 500; z-index: 2000; transform: translateX(400px); transition: transform 0.3s; }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .toast.error { background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%); }
+        .toast.info { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .status-bar { background: #e9ecef; padding: 10px 30px; font-size: 0.9em; color: #6c757d; text-align: center; }
+        .loading { display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>我的日记本</h1>
+            <p>记录生活中的点点滴滴</p>
+        </div>
+        
+        <div class="toolbar">
+            <button class="btn btn-success" onclick="showAddForm()">写日记</button>
+            <button class="btn btn-secondary" onclick="refreshDiaryList()">刷新</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索日记..." onkeyup="searchDiaries(event)">
+        </div>
+        
+        <div class="main-content">
+            <div class="sidebar">
+                <h3>日记列表</h3>
+                <ul class="diary-list" id="diaryList">
+                    <li class="diary-item" style="text-align: center; color: #999;"><span class="loading"></span>正在自动加载数据库...</li>
+                </ul>
+            </div>
+            
+            <div class="content-area">
+                <div class="empty-state" id="emptyState">
+                    <h2>欢迎使用日记本</h2>
+                    <p id="emptyStateMsg">正在尝试自动加载 diary.db...</p>
+                    <br>
+                    <button class="btn btn-primary" id="selectFileBtn" onclick="selectDatabaseFile()" style="display: none;">选择数据库文件</button>
+                    <input type="file" id="dbFileInput" accept=".db,.sqlite,.sqlite3" onchange="handleFileSelect(event)">
+                </div>
+                
+                <div class="diary-view" id="diaryView" style="display: none;">
+                    <div class="diary-view-header">
+                        <div class="diary-view-title" id="viewTitle"></div>
+                        <div class="diary-view-date" id="viewDate"></div>
+                    </div>
+                    <div class="diary-view-content" id="viewContent"></div>
+                    <div class="diary-view-actions">
+                        <button class="btn btn-secondary" onclick="backToList()">返回</button>
+                        <button class="btn btn-primary" onclick="editCurrentDiary()">编辑</button>
+                        <button class="btn btn-danger" onclick="deleteCurrentDiary()">删除</button>
+                    </div>
+                </div>
+                
+                <div class="diary-form" id="diaryForm" style="display: none;">
+                    <div class="form-group">
+                        <label>标题</label>
+                        <input type="text" id="formTitle" placeholder="请输入日记标题">
+                    </div>
+                    <div class="form-group">
+                        <label>日期</label>
+                        <input type="date" id="formDate">
+                    </div>
+                    <div class="form-group">
+                        <label>内容</label>
+                        <textarea id="formContent" placeholder="写下今天的故事..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-secondary" onclick="cancelForm()">取消</button>
+                        <button class="btn btn-primary" onclick="saveDiary()">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="status-bar" id="statusBar">正在初始化...</div>
+    </div>
+    
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal-content">
+            <h3>确认删除</h3>
+            <p>确定要删除这篇日记吗？此操作无法撤销。</p>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeDeleteModal()">取消</button>
+                <button class="btn btn-danger" onclick="confirmDelete()">删除</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let db = null;
+        let SQL = null;
+        let currentDiaryId = null;
+        let diaries = [];
+        let currentFileHandle = null;
+        let isAutoLoaded = false;
+
+        // 初始化
+        async function init() {
+            try {
+                SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+                });
+                updateStatus('系统就绪，正在尝试自动加载 diary.db...');
+                
+                // 尝试自动加载
+                await tryAutoLoad();
+            } catch (error) {
+                showToast('初始化失败: ' + error.message, 'error');
+                updateStatus('初始化失败');
+                showManualSelect();
+            }
+        }
+
+        // 尝试自动加载数据库
+        async function tryAutoLoad() {
+            try {
+                // 尝试通过 fetch 加载同目录下的 diary.db
+                const response = await fetch('diary.db', { cache: 'no-cache' });
+                
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                db = new SQL.Database(uint8Array);
+                
+                isAutoLoaded = true;
+                refreshDiaryList();
+                updateStatus('✓ 已自动加载 diary.db | 所有修改将自动下载保存');
+                showToast('数据库自动加载成功', 'success');
+                
+                // 清空选择状态
+                currentDiaryId = null;
+                showSection('emptyState');
+                document.getElementById('emptyStateMsg').textContent = '选择左侧日记查看，或点击"写日记"添加新日记';
+                
+            } catch (error) {
+                console.log('自动加载失败:', error);
+                updateStatus('自动加载失败，请手动选择数据库文件');
+                showToast('无法自动加载 diary.db，请手动选择', 'info');
+                showManualSelect();
+            }
+        }
+
+        // 显示手动选择按钮
+        function showManualSelect() {
+            document.getElementById('diaryList').innerHTML = 
+                '<li class="diary-item" style="text-align: center; color: #999;">请点击右侧按钮选择数据库文件</li>';
+            document.getElementById('emptyStateMsg').textContent = '无法自动加载 diary.db，请手动选择文件';
+            document.getElementById('selectFileBtn').style.display = 'inline-block';
+        }
+
+        // 选择数据库文件（手动）
+        async function selectDatabaseFile() {
+            // 尝试使用 File System Access API
+            if (window.showOpenFilePicker) {
+                try {
+                    const [fileHandle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'SQLite Database',
+                            accept: { 'application/x-sqlite3': ['.db', '.sqlite', '.sqlite3'] }
+                        }]
+                    });
+                    currentFileHandle = fileHandle;
+                    const file = await fileHandle.getFile();
+                    await loadDatabaseFromFile(file);
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        showToast('选择文件失败: ' + error.message, 'error');
+                    }
+                }
+            } else {
+                // 回退到传统 file input
+                document.getElementById('dbFileInput').click();
+            }
+        }
+
+        // 处理传统 file input 选择
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            await loadDatabaseFromFile(file);
+        }
+
+        // 从文件加载数据库
+        async function loadDatabaseFromFile(file) {
+            try {
+                updateStatus('正在加载数据库...');
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                db = new SQL.Database(uint8Array);
+                
+                isAutoLoaded = false;
+                refreshDiaryList();
+                updateStatus(`已加载: ${file.name} | 所有修改将自动保存`);
+                showToast('数据库加载成功', 'success');
+                
+                // 清空选择状态
+                currentDiaryId = null;
+                showSection('emptyState');
+                document.getElementById('emptyStateMsg').textContent = '选择左侧日记查看，或点击"写日记"添加新日记';
+            } catch (error) {
+                updateStatus('加载失败: ' + error.message);
+                showToast('加载数据库失败: ' + error.message, 'error');
+            }
+        }
+
+        // 自动保存数据库
+        async function autoSave() {
+            if (!db) return;
+            
+            try {
+                const data = db.export();
+                const blob = new Blob([data], { type: 'application/x-sqlite3' });
+                
+                // 如果是通过 File System Access API 加载的，尝试直接保存
+                if (!isAutoLoaded && currentFileHandle && currentFileHandle.createWritable) {
+                    try {
+                        const writable = await currentFileHandle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        showToast('已自动保存到原文件', 'success');
+                        return;
+                    } catch (e) {
+                        console.log('直接保存失败，使用下载方式:', e);
+                    }
+                }
+                
+                // 使用下载方式保存
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'diary.db';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                if (isAutoLoaded) {
+                    showToast('已自动保存（请用下载的文件替换服务器上的文件）', 'success');
+                } else {
+                    showToast('已自动保存（请用下载的文件替换原文件）', 'success');
+                }
+            } catch (error) {
+                showToast('自动保存失败: ' + error.message, 'error');
+            }
+        }
+
+        // 刷新日记列表
+        function refreshDiaryList() {
+            if (!db) return;
+            try {
+                const result = db.exec("SELECT id, title, content, date, created_at FROM diaries ORDER BY date DESC");
+                diaries = result.length > 0 ? result[0].values.map(row => ({
+                    id: row[0], title: row[1], content: row[2], date: row[3], created_at: row[4]
+                })) : [];
+                renderDiaryList();
+            } catch (error) {
+                showToast('刷新失败: ' + error.message, 'error');
+            }
+        }
+
+        // 渲染日记列表
+        function renderDiaryList() {
+            const list = document.getElementById('diaryList');
+            if (diaries.length === 0) {
+                list.innerHTML = '<li class="diary-item" style="text-align: center; color: #999;">暂无日记，点击"写日记"开始写作</li>';
+                return;
+            }
+            list.innerHTML = diaries.map(diary => `
+                <li class="diary-item ${diary.id === currentDiaryId ? 'active' : ''}" onclick="viewDiary(${diary.id})">
+                    <div class="diary-title">${escapeHtml(diary.title || '无标题')}</div>
+                    <div class="diary-date">${diary.date}</div>
+                    <div class="diary-preview">${escapeHtml(diary.content || '').substring(0, 50)}...</div>
+                </li>
+            `).join('');
+        }
+
+        // 显示添加表单
+        function showAddForm() {
+            if (!db) { showToast('请先加载数据库', 'error'); return; }
+            currentDiaryId = null;
+            document.getElementById('formTitle').value = '';
+            document.getElementById('formDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('formContent').value = '';
+            showSection('diaryForm');
+        }
+
+        // 查看日记
+        function viewDiary(id) {
+            const diary = diaries.find(d => d.id === id);
+            if (!diary) return;
+            currentDiaryId = id;
+            document.getElementById('viewTitle').textContent = diary.title || '无标题';
+            document.getElementById('viewDate').textContent = diary.date;
+            document.getElementById('viewContent').textContent = diary.content || '';
+            showSection('diaryView');
+            renderDiaryList();
+        }
+
+        // 编辑当前日记
+        function editCurrentDiary() {
+            const diary = diaries.find(d => d.id === currentDiaryId);
+            if (!diary) return;
+            document.getElementById('formTitle').value = diary.title || '';
+            document.getElementById('formDate').value = diary.date || '';
+            document.getElementById('formContent').value = diary.content || '';
+            showSection('diaryForm');
+        }
+
+        // 删除当前日记
+        function deleteCurrentDiary() {
+            document.getElementById('deleteModal').classList.add('show');
+        }
+
+        // 关闭删除模态框
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('show');
+        }
+
+        // 确认删除
+        async function confirmDelete() {
+            if (!currentDiaryId || !db) return;
+            try {
+                db.exec(`DELETE FROM diaries WHERE id = ${currentDiaryId}`);
+                showToast('日记删除成功', 'success');
+                closeDeleteModal();
+                currentDiaryId = null;
+                refreshDiaryList();
+                showSection('emptyState');
+                await autoSave();
+            } catch (error) {
+                showToast('删除失败: ' + error.message, 'error');
+            }
+        }
+
+        // 保存日记
+        async function saveDiary() {
+            if (!db) { showToast('请先加载数据库', 'error'); return; }
+            const title = document.getElementById('formTitle').value.trim();
+            const date = document.getElementById('formDate').value;
+            const content = document.getElementById('formContent').value.trim();
+            
+            if (!title && !content) { showToast('请至少填写标题或内容', 'error'); return; }
+            
+            try {
+                if (currentDiaryId) {
+                    db.run("UPDATE diaries SET title = ?, content = ?, date = ? WHERE id = ?", [title, content, date, currentDiaryId]);
+                    showToast('日记更新成功', 'success');
+                } else {
+                    db.run("INSERT INTO diaries (title, content, date, created_at) VALUES (?, ?, ?, datetime('now'))", [title, content, date]);
+                    showToast('日记添加成功', 'success');
+                }
+                refreshDiaryList();
+                showSection('emptyState');
+                await autoSave();
+            } catch (error) {
+                showToast('保存失败: ' + error.message, 'error');
+            }
+        }
+
+        // 取消表单
+        function cancelForm() {
+            currentDiaryId = null;
+            showSection('emptyState');
+        }
+
+        // 返回列表
+        function backToList() {
+            currentDiaryId = null;
+            showSection('emptyState');
+            renderDiaryList();
+        }
+
+        // 显示指定区域
+        function showSection(sectionId) {
+            ['emptyState', 'diaryView', 'diaryForm'].forEach(id => {
+                document.getElementById(id).style.display = id === sectionId ? 'block' : 'none';
+            });
+        }
+
+        // 搜索日记
+        function searchDiaries(event) {
+            if (event.key === 'Enter') performSearch();
+        }
+
+        // 执行搜索
+        function performSearch() {
+            const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!keyword) { renderDiaryList(); return; }
+            const filtered = diaries.filter(d => 
+                (d.title || '').toLowerCase().includes(keyword) ||
+                (d.content || '').toLowerCase().includes(keyword)
+            );
+            renderFilteredList(filtered);
+        }
+
+        // 渲染过滤后的列表
+        function renderFilteredList(filtered) {
+            const list = document.getElementById('diaryList');
+            if (filtered.length === 0) {
+                list.innerHTML = '<li class="diary-item" style="text-align: center; color: #999;">没有找到匹配的日记</li>';
+                return;
+            }
+            list.innerHTML = filtered.map(diary => `
+                <li class="diary-item ${diary.id === currentDiaryId ? 'active' : ''}" onclick="viewDiary(${diary.id})">
+                    <div class="diary-title">${escapeHtml(diary.title || '无标题')}</div>
+                    <div class="diary-date">${diary.date}</div>
+                    <div class="diary-preview">${escapeHtml(diary.content || '').substring(0, 50)}...</div>
+                </li>
+            `).join('');
+        }
+
+        // 更新状态栏
+        function updateStatus(message) {
+            document.getElementById('statusBar').textContent = message;
+        }
+
+        // 辅助函数
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        // 页面加载时初始化
+        window.onload = init;
+    </script>
+</body>
+</html>
