@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能场馆带班安排表系统</title>
+    <style>
+        /* 全局样式与控制面板 (屏幕显示) */
+        body {
+            font-family: 'SimSun', '宋体', serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .no-print {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 297mm;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            font-family: sans-serif;
+        }
+
+        .control-group { margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .control-group label { font-weight: bold; }
+        
+        input[type="number"], input[type="text"], select {
+            padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+        }
+
+        button {
+            padding: 6px 12px; cursor: pointer;
+            background-color: #007bff; color: white; border: none; border-radius: 4px;
+        }
+        button:hover { background-color: #0056b3; }
+        .btn-holiday { background-color: #ff9800; }
+        .btn-holiday:hover { background-color: #e68a00; }
+        .btn-candidate { background-color: #17a2b8; }
+        .btn-candidate:hover { background-color: #138496; }
+        button.export-btn { background-color: #28a745; font-weight: bold; }
+        button.export-btn:hover { background-color: #218838; }
+        
+        /* 拖拽排序相关样式 */
+        .staff-tags { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-height: 28px; }
+        .staff-tag {
+            background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 14px;
+            display: flex; align-items: center; gap: 5px;
+            cursor: grab; transition: all 0.2s; user-select: none;
+        }
+        .staff-tag[data-type="holiday"] { background: #ffe0b2; border: 1px solid #ffb74d; }
+        .staff-tag[data-type="candidate"] { background: #e0f7fa; border: 1px solid #4dd0e1; }
+        .staff-tag:active { cursor: grabbing; }
+        .staff-tag.drag-over { border: 2px dashed #007bff; transform: scale(1.05); }
+        .drag-handle { color: #888; margin-right: 2px; font-weight: bold; }
+        .delete-btn { cursor: pointer; color: red; font-weight: bold; margin-left: 4px; }
+        .delete-btn:hover { color: darkred; }
+
+        /* A4 横版打印纸样式 */
+        .a4-page {
+            width: 297mm; min-height: 210mm; background: white; padding: 15mm 20mm;
+            box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.3); position: relative;
+        }
+
+        h1 { text-align: center; font-size: 28px; margin-bottom: 20px; letter-spacing: 2px; }
+        .date-range { text-align: right; font-size: 16px; margin-bottom: 10px; padding-right: 10px; }
+
+        table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 0; }
+        th { font-weight: normal; font-size: 16px; padding: 10px 0; }
+        
+        .row-date td { font-size: 15px; padding: 8px 0; height: 35px; vertical-align: bottom; }
+        .row-name td { font-size: 18px; font-weight: bold; height: 45px; vertical-align: middle; }
+
+        .clickable { cursor: pointer; transition: background-color 0.2s; }
+        .clickable:hover { background-color: #e2e6ea; }
+        .holiday-cell { background-color: #ffe5e5 !important; }
+        .holiday-text { color: #d9534f; font-size: 14px; font-weight: normal; }
+
+        /* ====== 换班、替换、新增、当天高亮样式 ====== */
+        .today-highlight { background-color: #fff9c4 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .today-date-text { color: #d84315 !important; font-weight: bold !important; }
+        .today-name-text { color: #d84315 !important; font-weight: 900 !important; font-size: 22px !important; }
+        
+        .swap-text { color: #0288d1; text-decoration: underline dashed; }
+        .temp-text { color: #9c27b0; font-style: italic; } /* 替换人员 */
+        .insert-text { color: #e91e63; font-weight: bold; } /* 新增人员 */
+        .holiday-duty-text { color: #d84315; font-weight: bold; }
+        .badge { font-size: 12px; color: #666; font-weight: normal; text-decoration: none; font-style: normal; }
+
+        /* ====== 弹出菜单与提示横幅 ====== */
+        .context-menu {
+            position: absolute; background: white; border: 1px solid #aaa;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); border-radius: 4px; z-index: 1000;
+            display: none; flex-direction: column; min-width: 180px; font-family: sans-serif;
+        }
+        .context-menu div { padding: 12px 15px; cursor: pointer; font-size: 14px; border-bottom: 1px solid #eee; }
+        .context-menu div:last-child { border-bottom: none; }
+        .context-menu div:hover { background-color: #f1f3f5; color: #007bff; }
+        .context-menu .menu-danger:hover { color: red; background-color: #ffeeee; }
+        
+        .swap-banner {
+            position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
+            background: #ff9800; color: white; padding: 12px 25px; border-radius: 30px;
+            font-weight: bold; font-family: sans-serif; z-index: 1001; display: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+        }
+        .swap-banner:hover { background: #e68a00; }
+
+        /* ====== 悬浮切换月份按钮 ====== */
+        .month-floater {
+            position: fixed; right: 30px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 15px; z-index: 999;
+        }
+        .float-btn {
+            width: 50px; height: 50px; border-radius: 50%; background: #fff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 2px solid #007bff;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; transition: all 0.2s; font-size: 24px; color: #007bff;
+            user-select: none;
+        }
+        .float-btn:hover { background: #007bff; color: #fff; transform: scale(1.1); }
+        .float-btn:active { transform: scale(0.95); }
+
+        /* ====== 人员选择弹窗样式 ====== */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); display: none;
+            justify-content: center; align-items: center; z-index: 2000;
+            font-family: sans-serif;
+        }
+        .custom-modal {
+            background: white; padding: 20px; border-radius: 8px; width: 400px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .modal-body { margin-bottom: 20px; }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+        .staff-chip {
+            display: inline-block; padding: 6px 12px; margin: 4px;
+            background: #e9ecef; border-radius: 15px; cursor: pointer; font-size: 13px;
+            border: 1px solid #ccc;
+        }
+        .staff-chip:hover { background: #d0e5ff; border-color: #007bff; color: #007bff; }
+        .staff-chip.holiday-chip { background: #ffe0b2; border-color: #ffb74d; }
+        .staff-chip.holiday-chip:hover { background: #ffcc80; color: #d84315; border-color: #d84315; }
+        .staff-chip.candidate-chip { background: #e0f7fa; border-color: #4dd0e1; }
+        .staff-chip.candidate-chip:hover { background: #b2ebf2; color: #00838f; border-color: #00838f; }
+
+        .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; }
+
+        /* ====== 打印机专用样式 ====== */
+        @media print {
+            @page { size: A4 landscape; margin: 5mm; }
+            body { background: white; padding: 0; margin: 0; }
+            .no-print, .context-menu, .swap-banner, .modal-overlay, .month-floater { display: none !important; }
+            .a4-page { box-shadow: none; margin: 0; padding: 5mm 10mm; min-height: auto; width: 100%; height: 100%; page-break-after: avoid; }
+            h1 { font-size: 24px; margin-bottom: 10px; }
+            .date-range { font-size: 14px; margin-bottom: 5px; }
+            th { padding: 6px 0; font-size: 15px; }
+            .row-date td { height: 26px; padding: 4px 0; font-size: 14px; }
+            .row-name td { height: 36px; font-size: 17px; }
+            .remarks { margin-top: 15px; font-size: 12.5px; line-height: 1.4; }
+            .swap-text, .temp-text, .insert-text { color: #000 !important; text-decoration: none; } 
+        }
+    </style>
+    
+    <script src="setting.js" onerror="console.log('未找到全局配置文件 setting.js，系统将以空数据启动')"></script>
+</head>
+<body>
+
+    <div class="month-floater">
+        <div class="float-btn" onclick="changeMonth(-1)" title="上一个月">▲</div>
+        <div class="float-btn" onclick="changeMonth(1)" title="下一个月">▼</div>
+    </div>
+
+    <div id="swapBanner" class="swap-banner" onclick="cancelSwap()">🔄 换班模式：请在排班表中点击【非过去日期】的人员进行对调（点击此处取消）</div>
+    
+    <div id="contextMenu" class="context-menu">
+        <div id="menuHoliday">1. 公众假期</div>
+        <div id="menuSwap">2. 值班人员换班</div>
+        <div id="menuReplace">3. 替换值班人员</div>
+        <div id="menuInsert">4. 新增值班人员</div>
+        <div id="menuReset" class="menu-danger" style="display: none;">5. 取消操作</div>
+    </div>
+
+    <div id="staffModalOverlay" class="modal-overlay">
+        <div class="custom-modal">
+            <div class="modal-title" id="staffModalTitle">安排值班人员</div>
+            <div class="modal-body">
+                <input type="text" id="staffModalInput" placeholder="直接输入姓名，或在下方点击选择" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 8px; border: 1px solid #aaa; border-radius: 4px;">
+                
+                <div id="normalStaffHeader" style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #007bff;">可选日常值班人员：</div>
+                <div id="modalNormalStaff" style="margin-bottom: 10px;"></div>
+                
+                <div id="holidayStaffHeader" style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #ff9800;">可选假期值班人员：</div>
+                <div id="modalHolidayStaff" style="margin-bottom: 10px;"></div>
+                
+                <div id="candidateStaffHeader" style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #17a2b8;">可选候选人员：</div>
+                <div id="modalCandidateStaff"></div>
+            </div>
+            <div class="modal-footer">
+                <button style="background: #6c757d;" onclick="closeStaffModal()">取消</button>
+                <button onclick="confirmStaffModal()">确认提交</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="no-print">
+        <div class="control-group">
+            <label>排班时间：</label>
+            <input type="number" id="yearInput" style="width: 70px;" onchange="onMonthChange()"> 年
+            <select id="monthInput" onchange="onMonthChange()">
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            </select> 月
+            
+            <label style="margin-left: 15px;">本月日常起排：</label>
+            <select id="startStaffIndex" onchange="generateSchedule()" style="width: 80px;"></select>
+            
+            <label style="margin-left: 15px;">本月假期起排：</label>
+            <select id="startHolidayStaffIndex" onchange="generateSchedule()" style="width: 80px;"></select>
+            
+            <button onclick="generateSchedule()" style="margin-left: 10px;">刷新表格</button>
+        </div>
+        
+        <div class="control-group">
+            <label>添加人员：</label>
+            <input type="text" id="newStaff" placeholder="输入姓名">
+            <button onclick="addStaff('normal')">日常值班</button>
+            <button onclick="addStaff('holiday')" class="btn-holiday">假期值班</button>
+            <button onclick="addStaff('candidate')" class="btn-candidate">候选人员</button>
+        </div>
+        
+        <div class="control-group" style="align-items: flex-start; flex-direction: column; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
+            <div style="width: 100%; display: flex; align-items: center;">
+                <span style="font-weight:bold; color:#007bff; width: 85px;">日常值班：</span>
+                <div class="staff-tags" id="staffContainer" style="flex:1;"></div>
+            </div>
+            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                <span style="font-weight:bold; color:#ff9800; width: 85px;">假期值班：</span>
+                <div class="staff-tags" id="holidayStaffContainer" style="flex:1;"></div>
+            </div>
+            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                <span style="font-weight:bold; color:#17a2b8; width: 85px;">候选人员：</span>
+                <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
+            </div>
+        </div>
+
+        <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
+        <div class="control-group">
+            <button class="export-btn" onclick="exportSettingsJS()">💾 保存全局配置 (setting.js)</button>
+            <button onclick="window.print()" style="margin-left: auto; background-color: #6c757d; font-size: 16px;">🖨️ 打印排班表</button>
+        </div>
+    </div>
+
+    <div class="a4-page" id="printArea">
+        <h1>场馆带班安排表</h1>
+        <div class="date-range" id="dateRangeText">X月1日至X月31日</div>
+        <table id="scheduleTable">
+            <thead>
+                <tr><th colspan="7" style="font-weight: bold; letter-spacing: 5px;">7:00—20:00</th></tr>
+            </thead>
+            <tbody id="scheduleBody"></tbody>
+        </table>
+        <div class="remarks">
+            备注：1、带班人员负责巡视游泳馆及周边，督促各岗位员工履职，记录绩效。2、带班人员负责当天所有事务的处理、解决、协调、反馈。3、带班人员必须履职尽责，上下班打卡。4、带班人员带班时间7:00—9:00, 12:00—14:30、17:30—20:00，周一至周五当天上下午休息（与分管领导搭配AB岗位负责开放期间的各类工作）；周六、周日 7:00—20:00 全天带班。（有双休班时，晚上在双休下课，游泳馆各类事务平稳后下班）
+        </div>
+    </div>
+
+    <script>
+        // --- 核心数据配置 ---
+        let appSettings = window.appSettings || {}; 
+        
+        let staffList = appSettings.staffList || []; 
+        let holidayStaffList = appSettings.holidayStaffList || []; 
+        let candidateStaffList = appSettings.candidateStaffList || []; 
+        
+        let globalConfig = appSettings.scheduleConfig || { holidays: [], monthStarts: {}, holidayMonthStarts: {}, overrides: {}, inserts: {} };
+        let holidaySet = new Set(globalConfig.holidays); 
+        let monthStarts = globalConfig.monthStarts || {}; 
+        let holidayMonthStarts = globalConfig.holidayMonthStarts || {}; 
+        let overrides = globalConfig.overrides || {}; 
+        if (!globalConfig.inserts) globalConfig.inserts = {}; 
+        
+        let dragSrcEl = null;
+
+        // 交互状态变量
+        let currentMenuDate = null;
+        let currentMenuShiftKey = null; 
+        let currentMenuName = null;
+        let currentMenuIsHoliday = false; 
+        let swapSourceShiftKey = null;
+        let currentModalAction = ''; 
+
+        // --- 初始化 ---
+        const today = new Date();
+        document.getElementById('yearInput').value = today.getFullYear();
+        document.getElementById('monthInput').value = today.getMonth() + 1; 
+        
+        updateStartStaffSelects();
+        renderStaffTags();
+        onMonthChange();
+
+        document.addEventListener('click', function(e) {
+            if(!document.getElementById('contextMenu').contains(e.target)) {
+                document.getElementById('contextMenu').style.display = 'none';
+            }
+        });
+
+        // --- 切换月份功能 ---
+        function changeMonth(offset) {
+            let year = parseInt(document.getElementById('yearInput').value, 10);
+            let month = parseInt(document.getElementById('monthInput').value, 10);
+            
+            month += offset;
+            if (month > 12) {
+                month = 1;
+                year++;
+            } else if (month < 1) {
+                month = 12;
+                year--;
+            }
+            
+            document.getElementById('yearInput').value = year;
+            document.getElementById('monthInput').value = month;
+            onMonthChange(); // 调用原有的月份变更处理逻辑
+        }
+
+        // --- 清理某槽位的换班/替换记录 ---
+        function cleanUpOverride(sKey) {
+            if (overrides[sKey]) {
+                if (overrides[sKey].type === 'swap') {
+                    let gId = overrides[sKey].groupId;
+                    for (let k in overrides) {
+                        if (overrides[k].groupId === gId) delete overrides[k];
+                    }
+                } else {
+                    delete overrides[sKey];
+                }
+            }
+        }
+
+        // --- 人员选择弹窗控制 ---
+        function openStaffModal(actionType) {
+            currentModalAction = actionType;
+            document.getElementById('staffModalInput').value = '';
+            
+            if (actionType === 'replace') {
+                document.getElementById('staffModalTitle').innerText = `为 ${currentMenuDate} 替换值班人员 (原排班不顺延)`;
+            } else {
+                document.getElementById('staffModalTitle').innerText = `在 ${currentMenuDate} 新增值班人员 (原排班自动顺延)`;
+            }
+            
+            const normHeader = document.getElementById('normalStaffHeader');
+            const normContainer = document.getElementById('modalNormalStaff');
+            const holHeader = document.getElementById('holidayStaffHeader');
+            const holContainer = document.getElementById('modalHolidayStaff');
+            const candContainer = document.getElementById('modalCandidateStaff');
+
+            // 渲染日常名单
+            normContainer.innerHTML = '';
+            if(staffList.length === 0) normContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
+            staffList.forEach(name => {
+                let chip = document.createElement('span');
+                chip.className = 'staff-chip'; chip.innerText = name;
+                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                normContainer.appendChild(chip);
+            });
+
+            // 渲染假期名单
+            holContainer.innerHTML = '';
+            if(holidayStaffList.length === 0) holContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
+            holidayStaffList.forEach(name => {
+                let chip = document.createElement('span');
+                chip.className = 'staff-chip holiday-chip'; chip.innerText = name;
+                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                holContainer.appendChild(chip);
+            });
+
+            // 渲染候选名单
+            candContainer.innerHTML = '';
+            if(candidateStaffList.length === 0) candContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
+            candidateStaffList.forEach(name => {
+                let chip = document.createElement('span');
+                chip.className = 'staff-chip candidate-chip'; chip.innerText = name;
+                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                candContainer.appendChild(chip);
+            });
+
+            // 核心判定：根据当前点击格子是否为节假日，智能隐藏另一半菜单，候选人员始终显示
+            if (currentMenuIsHoliday) {
+                normHeader.style.display = 'none';
+                normContainer.style.display = 'none';
+                holHeader.style.display = 'block';
+                holContainer.style.display = 'block';
+            } else {
+                normHeader.style.display = 'block';
+                normContainer.style.display = 'block';
+                holHeader.style.display = 'none';
+                holContainer.style.display = 'none';
+            }
+
+            document.getElementById('staffModalOverlay').style.display = 'flex';
+        }
+
+        function closeStaffModal() {
+            document.getElementById('staffModalOverlay').style.display = 'none';
+        }
+
+        function confirmStaffModal() {
+            const inputName = document.getElementById('staffModalInput').value.trim();
+            if (inputName) {
+                if (currentModalAction === 'insert') {
+                    globalConfig.inserts[currentMenuDate] = inputName;
+                } else if (currentModalAction === 'replace') {
+                    cleanUpOverride(currentMenuShiftKey); 
+                    overrides[currentMenuShiftKey] = { type: 'temp', name: inputName };
+                }
+                generateSchedule();
+                closeStaffModal();
+            } else {
+                alert("请输入或选择人员姓名！");
+            }
+        }
+
+        // --- 操作菜单事件绑定 ---
+        document.getElementById('menuHoliday').onclick = () => {
+            document.getElementById('contextMenu').style.display = 'none';
+            if (holidaySet.has(currentMenuDate)) holidaySet.delete(currentMenuDate);
+            else holidaySet.add(currentMenuDate);
+            generateSchedule();
+        };
+
+        document.getElementById('menuSwap').onclick = () => {
+            document.getElementById('contextMenu').style.display = 'none';
+            const sourceDateObj = parseDateStr(currentMenuDate);
+            if (sourceDateObj < getTodayZero()) { alert("不能对过去的日期发起换班修改！"); return; }
+            swapSourceShiftKey = currentMenuShiftKey;
+            document.getElementById('swapBanner').style.display = 'block';
+        };
+
+        document.getElementById('menuReplace').onclick = () => {
+            document.getElementById('contextMenu').style.display = 'none';
+            const sourceDateObj = parseDateStr(currentMenuDate);
+            if (sourceDateObj < getTodayZero()) { alert("不能在过去的日期替换人员！"); return; }
+            openStaffModal('replace'); 
+        };
+
+        document.getElementById('menuInsert').onclick = () => {
+            document.getElementById('contextMenu').style.display = 'none';
+            const sourceDateObj = parseDateStr(currentMenuDate);
+            if (sourceDateObj < getTodayZero()) { alert("不能在过去的日期新增人员！"); return; }
+            openStaffModal('insert'); 
+        };
+
+        document.getElementById('menuReset').onclick = () => {
+            document.getElementById('contextMenu').style.display = 'none';
+            if (currentMenuShiftKey === 'INSERT') {
+                delete globalConfig.inserts[currentMenuDate];
+            } else {
+                cleanUpOverride(currentMenuShiftKey);
+            }
+            generateSchedule();
+        };
+
+        function cancelSwap() {
+            swapSourceShiftKey = null;
+            document.getElementById('swapBanner').style.display = 'none';
+        }
+
+        // --- 表格单元格点击总控 ---
+        function handleCellClick(e, dateStr, shiftKey, isHoliday, displayName) {
+            e.stopPropagation(); 
+            if (!shiftKey) return; 
+
+            if (swapSourceShiftKey) {
+                if (shiftKey === 'INSERT') { alert("新增的排班人员独立于排班轮转，不能参与换班！"); return; }
+                if (shiftKey === swapSourceShiftKey) { alert("不能与自己换班！"); cancelSwap(); return; }
+                
+                const targetDateObj = parseDateStr(dateStr);
+                if (targetDateObj < getTodayZero()) { alert("换班目标日期不能早于今天！"); return; }
+
+                if (overrides[swapSourceShiftKey] && overrides[swapSourceShiftKey].type === 'temp') cleanUpOverride(swapSourceShiftKey);
+                if (overrides[shiftKey] && overrides[shiftKey].type === 'temp') cleanUpOverride(shiftKey);
+
+                let sourceX = (overrides[swapSourceShiftKey] && overrides[swapSourceShiftKey].type === 'swap') ? overrides[swapSourceShiftKey].source : swapSourceShiftKey;
+                let sourceY = (overrides[shiftKey] && overrides[shiftKey].type === 'swap') ? overrides[shiftKey].source : shiftKey;
+
+                let groupIdX = (overrides[swapSourceShiftKey] && overrides[swapSourceShiftKey].groupId) ? overrides[swapSourceShiftKey].groupId : 'G' + Date.now();
+                let groupIdY = (overrides[shiftKey] && overrides[shiftKey].groupId);
+
+                let finalGroupId = groupIdX;
+                if (groupIdY && groupIdY !== finalGroupId) {
+                    for (let k in overrides) {
+                        if (overrides[k].groupId === groupIdY) overrides[k].groupId = finalGroupId;
+                    }
+                }
+
+                overrides[swapSourceShiftKey] = { type: 'swap', source: sourceY, groupId: finalGroupId };
+                overrides[shiftKey] = { type: 'swap', source: sourceX, groupId: finalGroupId };
+                
+                let allResolved = true;
+                for (let k in overrides) {
+                    if (overrides[k].groupId === finalGroupId && overrides[k].source !== k) {
+                        allResolved = false; break;
+                    }
+                }
+                if (allResolved) {
+                    for (let k in overrides) {
+                        if (overrides[k].groupId === finalGroupId) delete overrides[k];
+                    }
+                }
+
+                cancelSwap();
+                generateSchedule();
+            } else {
+                currentMenuDate = dateStr;
+                currentMenuShiftKey = shiftKey;
+                currentMenuName = displayName;
+                currentMenuIsHoliday = isHoliday; 
+                
+                const menu = document.getElementById('contextMenu');
+                menu.style.display = 'flex';
+                menu.style.left = Math.min(e.pageX, window.innerWidth - 200) + 'px';
+                menu.style.top = e.pageY + 'px';
+
+                document.getElementById('menuHoliday').innerText = isHoliday ? '1. 取消公众假期' : '1. 设为公众假期';
+                
+                if (shiftKey === 'INSERT') {
+                    document.getElementById('menuSwap').style.display = 'none';
+                    document.getElementById('menuReplace').style.display = 'none';
+                    document.getElementById('menuInsert').style.display = 'none';
+                    document.getElementById('menuReset').innerText = '2. 取消新增人员';
+                    document.getElementById('menuReset').style.display = 'block';
+                } else {
+                    document.getElementById('menuSwap').style.display = 'block';
+                    document.getElementById('menuReplace').style.display = 'block';
+                    document.getElementById('menuInsert').style.display = 'block';
+                    if (overrides[shiftKey]) {
+                        document.getElementById('menuReset').style.display = 'block';
+                        if (overrides[shiftKey].type === 'swap') {
+                            document.getElementById('menuReset').innerText = '5. 取消人员换班';
+                        } else {
+                            document.getElementById('menuReset').innerText = '5. 取消替换人员';
+                        }
+                    } else {
+                        document.getElementById('menuReset').style.display = 'none';
+                    }
+                }
+            }
+        }
+
+        function parseDateStr(dateStr) {
+            const parts = dateStr.split('-'); return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        function getTodayZero() {
+            const t = new Date(); t.setHours(0, 0, 0, 0); return t;
+        }
+
+        // --- 智能追溯与跨月双轨自动衔接 ---
+        function onMonthChange() {
+            const year = parseInt(document.getElementById('yearInput').value, 10);
+            const month = parseInt(document.getElementById('monthInput').value, 10);
+            const key = `${year}-${month}`;
+            
+            let y = year, m = month;
+            let stack = [];
+            for (let i = 0; i < 24; i++) { 
+                let nOk = (staffList.length === 0) || (monthStarts[`${y}-${m}`] !== undefined);
+                let hOk = (holidayStaffList.length === 0) || (holidayMonthStarts[`${y}-${m}`] !== undefined);
+                if (nOk && hOk) break;
+                
+                stack.push({y, m});
+                m--; if (m < 1) { m = 12; y--; }
+            }
+            
+            while (stack.length > 0) {
+                let curr = stack.pop();
+                let pY = curr.y, pM = curr.m - 1;
+                if (pM < 1) { pM = 12; pY--; }
+                
+                let pKey = `${pY}-${pM}`;
+                let cKey = `${curr.y}-${curr.m}`;
+                const days = new Date(pY, pM, 0).getDate();
+                
+                let normalCount = 0;
+                let holidayCount = 0;
+                for (let d = 1; d <= days; d++) {
+                    let dStr = `${pY}-${pM}-${d}`;
+                    let isHol = holidaySet.has(dStr);
+                    let isIns = globalConfig.inserts && globalConfig.inserts[dStr];
+                    
+                    if (!isIns) {
+                        if (!isHol) normalCount++;
+                        else holidayCount++;
+                    }
+                }
+                
+                if (staffList.length > 0 && monthStarts[pKey] !== undefined && monthStarts[cKey] === undefined) {
+                    let pIdx = staffList.indexOf(monthStarts[pKey]);
+                    if (pIdx !== -1) monthStarts[cKey] = staffList[(pIdx + normalCount) % staffList.length];
+                }
+                
+                if (holidayStaffList.length > 0 && holidayMonthStarts[pKey] !== undefined && holidayMonthStarts[cKey] === undefined) {
+                    let hpIdx = holidayStaffList.indexOf(holidayMonthStarts[pKey]);
+                    if (hpIdx !== -1) holidayMonthStarts[cKey] = holidayStaffList[(hpIdx + holidayCount) % holidayStaffList.length];
+                }
+            }
+            
+            if (monthStarts[key] !== undefined) {
+                const idx = staffList.indexOf(monthStarts[key]);
+                if (idx !== -1) document.getElementById('startStaffIndex').value = idx;
+            }
+            if (holidayMonthStarts[key] !== undefined) {
+                const idx = holidayStaffList.indexOf(holidayMonthStarts[key]);
+                if (idx !== -1) document.getElementById('startHolidayStaffIndex').value = idx;
+            }
+            
+            generateSchedule();
+        }
+
+        function updateStartStaffSelects() {
+            const selectNormal = document.getElementById('startStaffIndex');
+            const normVal = parseInt(selectNormal.value, 10);
+            const currentNormalName = isNaN(normVal) ? null : staffList[normVal]; 
+            selectNormal.innerHTML = '';
+            if (staffList.length === 0) { selectNormal.innerHTML = '<option value="0">无人员</option>'; }
+            else {
+                staffList.forEach((name, index) => {
+                    const option = document.createElement('option');
+                    option.value = index; option.innerText = name; selectNormal.appendChild(option);
+                });
+                if (currentNormalName) {
+                    const idx = staffList.indexOf(currentNormalName);
+                    if (idx !== -1) selectNormal.value = idx;
+                }
+            }
+
+            const selectHoliday = document.getElementById('startHolidayStaffIndex');
+            const holVal = parseInt(selectHoliday.value, 10);
+            const currentHolidayName = isNaN(holVal) ? null : holidayStaffList[holVal]; 
+            selectHoliday.innerHTML = '';
+            if (holidayStaffList.length === 0) { selectHoliday.innerHTML = '<option value="0">无人员</option>'; }
+            else {
+                holidayStaffList.forEach((name, index) => {
+                    const option = document.createElement('option');
+                    option.value = index; option.innerText = name; selectHoliday.appendChild(option);
+                });
+                if (currentHolidayName) {
+                    const idx = holidayStaffList.indexOf(currentHolidayName);
+                    if (idx !== -1) selectHoliday.value = idx;
+                }
+            }
+        }
+
+        // --- 拖拽与人员管理逻辑 ---
+        function handleDragStart(e) { dragSrcEl = this; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/html', this.innerHTML); this.style.opacity = '0.5'; }
+        function handleDragOver(e) { if (e.preventDefault) e.preventDefault(); e.dataTransfer.dropEffect = 'move'; return false; }
+        function handleDragEnter(e) { this.classList.add('drag-over'); }
+        function handleDragLeave(e) { this.classList.remove('drag-over'); }
+        function handleDragEnd(e) { this.style.opacity = '1'; document.querySelectorAll('.staff-tag').forEach(tag => tag.classList.remove('drag-over')); }
+        function handleDrop(e) {
+            if (e.stopPropagation) e.stopPropagation();
+            if (dragSrcEl !== this) {
+                const srcType = dragSrcEl.dataset.type;
+                const tgtType = this.dataset.type;
+                if (srcType !== tgtType) { alert("不同类型人员不能跨组拖拽排序！"); return false; }
+
+                const list = (srcType === 'normal') ? staffList : (srcType === 'holiday') ? holidayStaffList : candidateStaffList;
+                const fromIndex = parseInt(dragSrcEl.dataset.index, 10);
+                const toIndex = parseInt(this.dataset.index, 10);
+                const movedItem = list.splice(fromIndex, 1)[0];
+                list.splice(toIndex, 0, movedItem);
+                
+                updateStartStaffSelects(); renderStaffTags(); generateSchedule();
+            }
+            return false;
+        }
+
+        function renderStaffTags() {
+            const containerNormal = document.getElementById('staffContainer');
+            containerNormal.innerHTML = '';
+            staffList.forEach((name, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'staff-tag'; tag.draggable = true; tag.dataset.index = index; tag.dataset.type = 'normal';
+                tag.innerHTML = `<span class="drag-handle">≡</span> ${name} <span class="delete-btn" onclick="removeStaff('normal', ${index})">×</span>`;
+                tag.addEventListener('dragstart', handleDragStart); tag.addEventListener('dragenter', handleDragEnter);
+                tag.addEventListener('dragover', handleDragOver); tag.addEventListener('dragleave', handleDragLeave);
+                tag.addEventListener('drop', handleDrop); tag.addEventListener('dragend', handleDragEnd);
+                containerNormal.appendChild(tag);
+            });
+
+            const containerHoliday = document.getElementById('holidayStaffContainer');
+            containerHoliday.innerHTML = '';
+            holidayStaffList.forEach((name, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'staff-tag'; tag.draggable = true; tag.dataset.index = index; tag.dataset.type = 'holiday';
+                tag.innerHTML = `<span class="drag-handle">≡</span> ${name} <span class="delete-btn" onclick="removeStaff('holiday', ${index})">×</span>`;
+                tag.addEventListener('dragstart', handleDragStart); tag.addEventListener('dragenter', handleDragEnter);
+                tag.addEventListener('dragover', handleDragOver); tag.addEventListener('dragleave', handleDragLeave);
+                tag.addEventListener('drop', handleDrop); tag.addEventListener('dragend', handleDragEnd);
+                containerHoliday.appendChild(tag);
+            });
+
+            const containerCandidate = document.getElementById('candidateStaffContainer');
+            containerCandidate.innerHTML = '';
+            candidateStaffList.forEach((name, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'staff-tag'; tag.draggable = true; tag.dataset.index = index; tag.dataset.type = 'candidate';
+                tag.innerHTML = `<span class="drag-handle">≡</span> ${name} <span class="delete-btn" onclick="removeStaff('candidate', ${index})">×</span>`;
+                tag.addEventListener('dragstart', handleDragStart); tag.addEventListener('dragenter', handleDragEnter);
+                tag.addEventListener('dragover', handleDragOver); tag.addEventListener('dragleave', handleDragLeave);
+                tag.addEventListener('drop', handleDrop); tag.addEventListener('dragend', handleDragEnd);
+                containerCandidate.appendChild(tag);
+            });
+        }
+
+        function addStaff(type) {
+            const input = document.getElementById('newStaff');
+            const name = input.value.trim();
+            if (name) {
+                if (type === 'normal' && !staffList.includes(name)) staffList.push(name);
+                if (type === 'holiday' && !holidayStaffList.includes(name)) holidayStaffList.push(name);
+                if (type === 'candidate' && !candidateStaffList.includes(name)) candidateStaffList.push(name);
+                input.value = '';
+                updateStartStaffSelects(); renderStaffTags(); generateSchedule(); 
+            }
+        }
+
+        function removeStaff(type, index) {
+            if (type === 'normal') staffList.splice(index, 1);
+            else if (type === 'holiday') holidayStaffList.splice(index, 1);
+            else if (type === 'candidate') candidateStaffList.splice(index, 1);
+            updateStartStaffSelects(); renderStaffTags(); generateSchedule();
+        }
+
+        // --- 核心排班与渲染逻辑 ---
+        function generateSchedule() {
+            const year = parseInt(document.getElementById('yearInput').value, 10);
+            const month = parseInt(document.getElementById('monthInput').value, 10);
+            const key = `${year}-${month}`;
+            
+            let startStaffIndex = parseInt(document.getElementById('startStaffIndex').value, 10);
+            if (isNaN(startStaffIndex)) startStaffIndex = 0;
+            
+            let startHolidayStaffIndex = parseInt(document.getElementById('startHolidayStaffIndex').value, 10);
+            if (isNaN(startHolidayStaffIndex)) startHolidayStaffIndex = 0;
+            
+            const sysToday = new Date();
+            const isCurrentMonthYear = (sysToday.getFullYear() === year && sysToday.getMonth() + 1 === month);
+            const todayDate = sysToday.getDate();
+            
+            if (staffList.length > 0) monthStarts[key] = staffList[startStaffIndex];
+            if (holidayStaffList.length > 0) holidayMonthStarts[key] = holidayStaffList[startHolidayStaffIndex];
+            
+            const daysInMonth = new Date(year, month, 0).getDate();
+            document.getElementById('dateRangeText').innerText = `${month}月1日至${month}月${daysInMonth}日`;
+
+            const tbody = document.getElementById('scheduleBody');
+            tbody.innerHTML = '';
+
+            let firstDay = new Date(year, month - 1, 1).getDay();
+            let startCol = firstDay === 0 ? 6 : firstDay - 1; 
+            const weekDaysStr = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+            
+            let trDate = document.createElement('tr'); trDate.className = 'row-date';
+            let trName = document.createElement('tr'); trName.className = 'row-name';
+
+            for (let i = 0; i < startCol; i++) {
+                trDate.appendChild(document.createElement('td'));
+                trName.appendChild(document.createElement('td'));
+            }
+
+            let monthShiftIndex = 0; 
+            let monthHolidayIndex = 0; 
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const colIndex = (startCol + day - 1) % 7;
+                
+                if (colIndex === 0 && day !== 1) {
+                    tbody.appendChild(trDate); tbody.appendChild(trName);
+                    trDate = document.createElement('tr'); trDate.className = 'row-date';
+                    trName = document.createElement('tr'); trName.className = 'row-name';
+                }
+
+                const dateStr = `${year}-${month}-${day}`;
+                const isHoliday = holidaySet.has(dateStr);
+                const isInserted = globalConfig.inserts && globalConfig.inserts[dateStr];
+                
+                const tdDate = document.createElement('td');
+                const tdName = document.createElement('td');
+                
+                tdDate.className = `clickable ${isHoliday ? 'holiday-cell' : ''}`;
+                tdName.className = `clickable ${isHoliday ? 'holiday-cell' : ''}`;
+                
+                if (isCurrentMonthYear && day === todayDate) {
+                    tdDate.classList.add('today-highlight', 'today-date-text');
+                    tdName.classList.add('today-highlight', 'today-name-text');
+                }
+                tdDate.innerText = `${weekDaysStr[colIndex]} (${day}号)`;
+                
+                let shiftKey = null;
+                let displayName = null;
+
+                if (isInserted) {
+                    displayName = globalConfig.inserts[dateStr];
+                    tdName.innerHTML = `<span class="insert-text">${displayName} <span class="badge" style="color:#e91e63;">(增)</span></span>`;
+                    if (isHoliday) {
+                        tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期值班)</span>`;
+                    }
+                    tdDate.onclick = (e) => handleCellClick(e, dateStr, 'INSERT', isHoliday, displayName);
+                    tdName.onclick = (e) => handleCellClick(e, dateStr, 'INSERT', isHoliday, displayName);
+
+                } else if (isHoliday) {
+                    if (holidayStaffList.length > 0) {
+                        shiftKey = `${year}-${month}-H${monthHolidayIndex}`;
+                        let basePerson = holidayStaffList[(startHolidayStaffIndex + monthHolidayIndex) % holidayStaffList.length];
+                        displayName = basePerson;
+
+                        if (overrides[shiftKey]) {
+                            if (overrides[shiftKey].type === 'swap') {
+                                let sourceKey = overrides[shiftKey].source;
+                                let parts = sourceKey.split('-');
+                                let sYearMonth = `${parts[0]}-${parts[1]}`;
+                                let sType = parts[2].charAt(0);
+                                let sIdx = parseInt(parts[2].substring(1), 10);
+                                
+                                let sStartName = sType === 'S' ? monthStarts[sYearMonth] : holidayMonthStarts[sYearMonth];
+                                let sList = sType === 'S' ? staffList : holidayStaffList;
+                                let sStartIdx = sList.indexOf(sStartName); if (sStartIdx === -1) sStartIdx = 0;
+                                
+                                let sourceBasePerson = sList[(sStartIdx + sIdx) % sList.length];
+                                displayName = sourceBasePerson;
+                                tdName.innerHTML = `<span class="swap-text">${sourceBasePerson} <span class="badge">(换)</span></span><br><span class="badge" style="color:#d84315;">(假期值班)</span>`;
+                            } else if (overrides[shiftKey].type === 'temp') {
+                                displayName = overrides[shiftKey].name;
+                                tdName.innerHTML = `<span class="temp-text">${displayName} <span class="badge">(替)</span></span><br><span class="badge" style="color:#d84315;">(假期值班)</span>`;
+                            }
+                        } else {
+                            tdName.innerHTML = `<span class="holiday-duty-text">${basePerson}<br><span class="badge" style="color:#d84315;">(假期值班)</span></span>`;
+                        }
+                        
+                        tdDate.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
+                        tdName.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
+                        monthHolidayIndex++; 
+                    } else {
+                        tdName.innerHTML = '<span class="holiday-text">公众假期<br>(无假期人员)</span>';
+                        tdDate.onclick = (e) => handleCellClick(e, dateStr, null, isHoliday, null);
+                        tdName.onclick = (e) => handleCellClick(e, dateStr, null, isHoliday, null);
+                    }
+                } else {
+                    if (staffList.length > 0) {
+                        shiftKey = `${year}-${month}-S${monthShiftIndex}`;
+                        let basePerson = staffList[(startStaffIndex + monthShiftIndex) % staffList.length];
+                        displayName = basePerson;
+
+                        if (overrides[shiftKey]) {
+                            if (overrides[shiftKey].type === 'swap') {
+                                let sourceKey = overrides[shiftKey].source;
+                                let parts = sourceKey.split('-');
+                                let sYearMonth = `${parts[0]}-${parts[1]}`;
+                                let sType = parts[2].charAt(0);
+                                let sIdx = parseInt(parts[2].substring(1), 10);
+                                
+                                let sStartName = sType === 'S' ? monthStarts[sYearMonth] : holidayMonthStarts[sYearMonth];
+                                let sList = sType === 'S' ? staffList : holidayStaffList;
+                                let sStartIdx = sList.indexOf(sStartName); if (sStartIdx === -1) sStartIdx = 0;
+                                
+                                let sourceBasePerson = sList[(sStartIdx + sIdx) % sList.length];
+                                displayName = sourceBasePerson;
+                                tdName.innerHTML = `<span class="swap-text">${sourceBasePerson} <span class="badge">(换)</span></span>`;
+                            } else if (overrides[shiftKey].type === 'temp') {
+                                displayName = overrides[shiftKey].name;
+                                tdName.innerHTML = `<span class="temp-text">${displayName} <span class="badge">(替)</span></span>`;
+                            }
+                        } else {
+                            tdName.innerText = basePerson;
+                        }
+                        
+                        tdDate.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
+                        tdName.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
+                        monthShiftIndex++; 
+                    }
+                }
+
+                trDate.appendChild(tdDate);
+                trName.appendChild(tdName);
+            }
+
+            const lastCol = (startCol + daysInMonth - 1) % 7;
+            for (let i = lastCol + 1; i < 7; i++) {
+                trDate.appendChild(document.createElement('td'));
+                trName.appendChild(document.createElement('td'));
+            }
+
+            tbody.appendChild(trDate); tbody.appendChild(trName);
+        }
+
+        // --- 文件导出逻辑 ---
+        function downloadJSFile(content, filename) {
+            const blob = new Blob([content], { type: 'text/javascript;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+        }
+
+        function exportSettingsJS() {
+            const settings = {
+                staffList: staffList,
+                holidayStaffList: holidayStaffList,
+                candidateStaffList: candidateStaffList,
+                scheduleConfig: { 
+                    holidays: Array.from(holidaySet), 
+                    monthStarts: monthStarts, 
+                    holidayMonthStarts: holidayMonthStarts, 
+                    overrides: overrides,
+                    inserts: globalConfig.inserts 
+                }
+            };
+            const code = `// 智能排班系统全局配置文件\n// 请将此文件与 HTML 文件放在同一目录下\nwindow.appSettings = ${JSON.stringify(settings, null, 4)};`;
+            downloadJSFile(code, 'setting.js');
+        }
+    </script>
+</body>
+</html>
