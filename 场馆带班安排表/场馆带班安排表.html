@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能场馆带班安排表系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能场馆带班安排系统</title>
     <style>
         /* 全局样式与控制面板 (屏幕显示) */
         body {
@@ -14,14 +14,17 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            overflow-x: hidden; /* 防止移动端整体左右晃动 */
         }
 
+        /* 移动端优化：解除绝对物理宽度，使用百分比与最大宽度 */
         .no-print {
             background: #fff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            width: 297mm;
+            width: 100%;
+            max-width: 1122px; /* 约等于 297mm */
             box-sizing: border-box;
             margin-bottom: 20px;
             font-family: sans-serif;
@@ -32,11 +35,13 @@
         
         input[type="number"], input[type="text"], select {
             padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
+            max-width: 100%; /* 防止移动端溢出 */
         }
 
         button {
             padding: 6px 12px; cursor: pointer;
             background-color: #007bff; color: white; border: none; border-radius: 4px;
+            white-space: nowrap;
         }
         button:hover { background-color: #0056b3; }
         .btn-holiday { background-color: #ff9800; }
@@ -58,19 +63,26 @@
         .staff-tag:active { cursor: grabbing; }
         .staff-tag.drag-over { border: 2px dashed #007bff; transform: scale(1.05); }
         .drag-handle { color: #888; margin-right: 2px; font-weight: bold; }
-        .delete-btn { cursor: pointer; color: red; font-weight: bold; margin-left: 4px; }
+        .delete-btn { cursor: pointer; color: red; font-weight: bold; margin-left: 4px; padding: 2px; }
         .delete-btn:hover { color: darkred; }
 
-        /* A4 横版打印纸样式 */
+        /* A4 横版打印纸样式与移动端滚动容器 */
         .a4-page {
-            width: 297mm; min-height: 210mm; background: white; padding: 15mm 20mm;
+            width: 100%;
+            max-width: 1122px; /* 约等于 297mm */
+            min-height: auto; 
+            background: white; padding: 15px 20px;
             box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.3); position: relative;
+            margin-bottom: 30px;
+            overflow-x: auto; /* 移动端开启横向滚动 */
+            -webkit-overflow-scrolling: touch;
         }
 
         h1 { text-align: center; font-size: 28px; margin-bottom: 20px; letter-spacing: 2px; }
-        .date-range { text-align: right; font-size: 16px; margin-bottom: 10px; padding-right: 10px; }
+        .date-range { text-align: right; font-size: 16px; margin-bottom: 10px; padding-right: 10px; min-width: 700px; }
 
-        table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; }
+        /* 保证表格在手机上不会过度挤压，触发横向滚动 */
+        table { width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; table-layout: fixed; }
         th, td { border: 1px solid #000; padding: 0; }
         th { font-weight: normal; font-size: 16px; padding: 10px 0; }
         
@@ -108,13 +120,13 @@
             position: fixed; top: 15px; left: 50%; transform: translateX(-50%);
             background: #ff9800; color: white; padding: 12px 25px; border-radius: 30px;
             font-weight: bold; font-family: sans-serif; z-index: 1001; display: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); cursor: pointer; width: 90%; max-width: 600px; text-align: center; font-size: 14px;
         }
         .swap-banner:hover { background: #e68a00; }
 
         /* ====== 悬浮切换月份按钮 ====== */
         .month-floater {
-            position: fixed; right: 30px; top: 50%; transform: translateY(-50%);
+            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
             display: flex; flex-direction: column; gap: 15px; z-index: 999;
         }
         .float-btn {
@@ -122,7 +134,7 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 2px solid #007bff;
             display: flex; justify-content: center; align-items: center;
             cursor: pointer; transition: all 0.2s; font-size: 24px; color: #007bff;
-            user-select: none;
+            user-select: none; -webkit-tap-highlight-color: transparent;
         }
         .float-btn:hover { background: #007bff; color: #fff; transform: scale(1.1); }
         .float-btn:active { transform: scale(0.95); }
@@ -132,12 +144,12 @@
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); display: none;
             justify-content: center; align-items: center; z-index: 2000;
-            font-family: sans-serif;
+            font-family: sans-serif; padding: 15px;
         }
         .custom-modal {
-            background: white; padding: 20px; border-radius: 8px; width: 400px;
+            background: white; padding: 20px; border-radius: 8px; width: 100%; max-width: 400px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            max-height: 90vh; overflow-y: auto;
+            max-height: 90vh; overflow-y: auto; box-sizing: border-box;
         }
         .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; color: #333; }
         .modal-body { margin-bottom: 20px; }
@@ -145,7 +157,7 @@
         .staff-chip {
             display: inline-block; padding: 6px 12px; margin: 4px;
             background: #e9ecef; border-radius: 15px; cursor: pointer; font-size: 13px;
-            border: 1px solid #ccc;
+            border: 1px solid #ccc; -webkit-tap-highlight-color: transparent;
         }
         .staff-chip:hover { background: #d0e5ff; border-color: #007bff; color: #007bff; }
         .staff-chip.holiday-chip { background: #ffe0b2; border-color: #ffb74d; }
@@ -153,20 +165,38 @@
         .staff-chip.candidate-chip { background: #e0f7fa; border-color: #4dd0e1; }
         .staff-chip.candidate-chip:hover { background: #b2ebf2; color: #00838f; border-color: #00838f; }
 
-        .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; }
+        .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; min-width: 700px; }
+
+        /* ====== 移动端专用媒体查询优化 ====== */
+        @media screen and (max-width: 768px) {
+            body { padding: 10px; }
+            .month-floater { right: 10px; transform: translateY(-30%); gap: 10px; }
+            .float-btn { width: 40px; height: 40px; font-size: 18px; }
+            .no-print { padding: 15px; }
+            .a4-page { padding: 10px; }
+            h1 { font-size: 22px; margin-bottom: 15px; }
+            .control-group { flex-direction: column; align-items: stretch; gap: 8px; }
+            .control-group > div { width: 100%; justify-content: flex-start; }
+            .control-group button { flex: 1; text-align: center; }
+        }
 
         /* ====== 打印机专用样式 ====== */
         @media print {
             @page { size: A4 landscape; margin: 5mm; }
-            body { background: white; padding: 0; margin: 0; }
+            body { background: white; padding: 0; margin: 0; display: block; overflow: visible; }
             .no-print, .context-menu, .swap-banner, .modal-overlay, .month-floater { display: none !important; }
-            .a4-page { box-shadow: none; margin: 0; padding: 5mm 10mm; min-height: auto; width: 100%; height: 100%; page-break-after: avoid; }
+            .a4-page { 
+                box-shadow: none; margin: 0; padding: 5mm 10mm; 
+                width: 100%; max-width: none; overflow-x: visible; height: 100%; page-break-after: avoid; 
+            }
+            table { min-width: auto; } /* 恢复打印物理宽度 */
+            .date-range { min-width: auto; }
+            .remarks { min-width: auto; margin-top: 15px; font-size: 12.5px; line-height: 1.4; }
             h1 { font-size: 24px; margin-bottom: 10px; }
             .date-range { font-size: 14px; margin-bottom: 5px; }
             th { padding: 6px 0; font-size: 15px; }
             .row-date td { height: 26px; padding: 4px 0; font-size: 14px; }
             .row-name td { height: 36px; font-size: 17px; }
-            .remarks { margin-top: 15px; font-size: 12.5px; line-height: 1.4; }
             .swap-text, .temp-text, .insert-text { color: #000 !important; text-decoration: none; } 
         }
     </style>
@@ -212,56 +242,6 @@
         </div>
     </div>
 
-    <div class="no-print">
-        <div class="control-group">
-            <label>排班时间：</label>
-            <input type="number" id="yearInput" style="width: 70px;" onchange="onMonthChange()"> 年
-            <select id="monthInput" onchange="onMonthChange()">
-                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-                <option value="7">7</option><option value="8">8</option><option value="9">9</option>
-                <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-            </select> 月
-            
-            <label style="margin-left: 15px;">本月日常起排：</label>
-            <select id="startStaffIndex" onchange="generateSchedule()" style="width: 80px;"></select>
-            
-            <label style="margin-left: 15px;">本月假期起排：</label>
-            <select id="startHolidayStaffIndex" onchange="generateSchedule()" style="width: 80px;"></select>
-            
-            <button onclick="generateSchedule()" style="margin-left: 10px;">刷新表格</button>
-        </div>
-        
-        <div class="control-group">
-            <label>添加人员：</label>
-            <input type="text" id="newStaff" placeholder="输入姓名">
-            <button onclick="addStaff('normal')">日常值班</button>
-            <button onclick="addStaff('holiday')" class="btn-holiday">假期值班</button>
-            <button onclick="addStaff('candidate')" class="btn-candidate">候选人员</button>
-        </div>
-        
-        <div class="control-group" style="align-items: flex-start; flex-direction: column; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
-            <div style="width: 100%; display: flex; align-items: center;">
-                <span style="font-weight:bold; color:#007bff; width: 85px;">日常值班：</span>
-                <div class="staff-tags" id="staffContainer" style="flex:1;"></div>
-            </div>
-            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
-                <span style="font-weight:bold; color:#ff9800; width: 85px;">假期值班：</span>
-                <div class="staff-tags" id="holidayStaffContainer" style="flex:1;"></div>
-            </div>
-            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
-                <span style="font-weight:bold; color:#17a2b8; width: 85px;">候选人员：</span>
-                <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
-            </div>
-        </div>
-
-        <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
-        <div class="control-group">
-            <button class="export-btn" onclick="exportSettingsJS()">💾 保存全局配置 (setting.js)</button>
-            <button onclick="window.print()" style="margin-left: auto; background-color: #6c757d; font-size: 16px;">🖨️ 打印排班表</button>
-        </div>
-    </div>
-
     <div class="a4-page" id="printArea">
         <h1>场馆带班安排表</h1>
         <div class="date-range" id="dateRangeText">X月1日至X月31日</div>
@@ -273,6 +253,58 @@
         </table>
         <div class="remarks">
             备注：1、带班人员负责巡视游泳馆及周边，督促各岗位员工履职，记录绩效。2、带班人员负责当天所有事务的处理、解决、协调、反馈。3、带班人员必须履职尽责，上下班打卡。4、带班人员带班时间7:00—9:00, 12:00—14:30、17:30—20:00，周一至周五当天上下午休息（与分管领导搭配AB岗位负责开放期间的各类工作）；周六、周日 7:00—20:00 全天带班。（有双休班时，晚上在双休下课，游泳馆各类事务平稳后下班）
+        </div>
+    </div>
+
+    <div class="no-print">
+        <div class="control-group">
+            <label>排班时间：</label>
+            <div>
+                <input type="number" id="yearInput" style="width: 70px;" onchange="onMonthChange()"> 年
+                <select id="monthInput" onchange="onMonthChange()">
+                    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                    <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                    <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                </select> 月
+            </div>
+            
+            <label style="margin-left: 10px;">本月日常起排：</label>
+            <select id="startStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
+            
+            <label style="margin-left: 10px;">本月假期起排：</label>
+            <select id="startHolidayStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
+            
+            <button onclick="generateSchedule()" style="margin-left: auto;">刷新表格</button>
+        </div>
+        
+        <div class="control-group">
+            <label>添加人员：</label>
+            <input type="text" id="newStaff" placeholder="输入姓名" style="flex: 1; min-width: 100px;">
+            <button onclick="addStaff('normal')">日常</button>
+            <button onclick="addStaff('holiday')" class="btn-holiday">假期</button>
+            <button onclick="addStaff('candidate')" class="btn-candidate">候选</button>
+        </div>
+        
+        <div class="control-group" style="align-items: flex-start; flex-direction: column; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
+            <div style="width: 100%; display: flex; align-items: center;">
+                <span style="font-weight:bold; color:#007bff; width: 85px; flex-shrink: 0;">日常值班：</span>
+                <div class="staff-tags" id="staffContainer" style="flex:1;"></div>
+            </div>
+            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                <span style="font-weight:bold; color:#ff9800; width: 85px; flex-shrink: 0;">假期值班：</span>
+                <div class="staff-tags" id="holidayStaffContainer" style="flex:1;"></div>
+            </div>
+            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                <span style="font-weight:bold; color:#17a2b8; width: 85px; flex-shrink: 0;">候选人员：</span>
+                <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
+            </div>
+        </div>
+
+        <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
+        <div class="control-group" style="justify-content: space-between; flex-direction: row;">
+            <button class="export-btn" onclick="exportSettingsJS()">💾 保存配置</button>
+            <button onclick="window.print()" style="background-color: #6c757d; font-size: 16px;">🖨️ 打印排班表</button>
         </div>
     </div>
 
@@ -355,9 +387,9 @@
             document.getElementById('staffModalInput').value = '';
             
             if (actionType === 'replace') {
-                document.getElementById('staffModalTitle').innerText = `为 ${currentMenuDate} 替换值班人员 (原排班不顺延)`;
+                document.getElementById('staffModalTitle').innerText = `为 ${currentMenuDate} 替换值班人员`;
             } else {
-                document.getElementById('staffModalTitle').innerText = `在 ${currentMenuDate} 新增值班人员 (原排班自动顺延)`;
+                document.getElementById('staffModalTitle').innerText = `在 ${currentMenuDate} 新增值班人员`;
             }
             
             const normHeader = document.getElementById('normalStaffHeader');
@@ -530,7 +562,14 @@
                 
                 const menu = document.getElementById('contextMenu');
                 menu.style.display = 'flex';
-                menu.style.left = Math.min(e.pageX, window.innerWidth - 200) + 'px';
+                
+                // 移动端菜单定位优化，防止超出屏幕
+                const menuWidth = 180;
+                let leftPos = e.pageX;
+                if (leftPos + menuWidth > window.innerWidth) {
+                    leftPos = window.innerWidth - menuWidth - 10;
+                }
+                menu.style.left = Math.max(10, leftPos) + 'px';
                 menu.style.top = e.pageY + 'px';
 
                 document.getElementById('menuHoliday').innerText = isHoliday ? '1. 取消公众假期' : '1. 设为公众假期';
