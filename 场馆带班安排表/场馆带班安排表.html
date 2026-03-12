@@ -5,29 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>智能场馆带班安排系统</title>
     <style>
-        /* 全局样式与控制面板 (屏幕显示) */
+        /* 全局样式与屏幕自适应控制 */
         body {
             font-family: 'SimSun', '宋体', serif;
             background-color: #f0f4f8;
             margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
-            padding: 20px;
-            overflow-x: hidden; /* 防止移动端整体左右晃动 */
-        }
-
-        /* 移动端优化：解除绝对物理宽度，使用百分比与最大宽度 */
-        .no-print {
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            width: 100%;
-            max-width: 1122px; /* 约等于 297mm */
-            box-sizing: border-box;
-            margin-bottom: 20px;
-            font-family: sans-serif;
+            overflow: hidden; /* 严格禁止滚动条 */
         }
 
         .control-group { margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
@@ -35,7 +24,7 @@
         
         input[type="number"], input[type="text"], select {
             padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
-            max-width: 100%; /* 防止移动端溢出 */
+            max-width: 100%;
         }
 
         button {
@@ -66,28 +55,42 @@
         .delete-btn { cursor: pointer; color: red; font-weight: bold; margin-left: 4px; padding: 2px; }
         .delete-btn:hover { color: darkred; }
 
-        /* A4 横版打印纸样式与移动端滚动容器 */
-        .a4-page {
-            width: 100%;
-            max-width: 1122px; /* 约等于 297mm */
-            min-height: auto; 
-            background: white; padding: 15px 20px;
-            box-sizing: border-box; box-shadow: 0 0 10px rgba(0,0,0,0.3); position: relative;
-            margin-bottom: 30px;
-            overflow-x: auto; /* 移动端开启横向滚动 */
-            -webkit-overflow-scrolling: touch;
+        /* ====== 缩放容器与 A4 动态画板 ====== */
+        #scaleContainer {
+            display: flex; justify-content: center; align-items: center;
+            width: 100%; height: 100%;
+        }
+        
+        #scaleWrapper {
+            transform-origin: center center;
+            width: 1122px; 
+            transition: transform 0.1s ease-out; 
         }
 
-        h1 { text-align: center; font-size: 28px; margin-bottom: 20px; letter-spacing: 2px; }
-        .date-range { text-align: right; font-size: 16px; margin-bottom: 10px; padding-right: 10px; min-width: 700px; }
+        .a4-page {
+            width: 100%;
+            min-height: 794px; 
+            height: auto; 
+            background: white; 
+            padding: 30px 40px;
+            box-sizing: border-box; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.2); 
+            position: relative;
+            display: flex; 
+            flex-direction: column;
+        }
 
-        /* 保证表格在手机上不会过度挤压，触发横向滚动 */
-        table { width: 100%; min-width: 800px; border-collapse: collapse; text-align: center; table-layout: fixed; }
-        th, td { border: 1px solid #000; padding: 0; }
-        th { font-weight: normal; font-size: 16px; padding: 10px 0; }
+        h1 { text-align: center; font-size: 32px; margin-top: 0; margin-bottom: 20px; letter-spacing: 2px; flex-shrink: 0; }
+        .date-range { text-align: right; font-size: 16px; margin-bottom: 10px; padding-right: 10px; flex-shrink: 0; }
+
+        /* ====== 表格修复：绝对均等、1:2比例、上下左右完全居中 ====== */
+        table { width: 100%; flex: 1; border-collapse: collapse; text-align: center; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 0; vertical-align: middle; } /* 确保所有内容均上下居中 */
+        th { font-weight: normal; font-size: 16px; padding: 10px 0; width: 14.285%; } /* 强制7列均等宽度 */
         
-        .row-date td { font-size: 15px; padding: 8px 0; height: 35px; vertical-align: bottom; }
-        .row-name td { font-size: 18px; font-weight: bold; height: 45px; vertical-align: middle; }
+        /* 比例 1:2 (35px : 70px) */
+        .row-date td { font-size: 15px; height: 35px; } 
+        .row-name td { font-size: 18px; font-weight: bold; height: 70px; } 
 
         .clickable { cursor: pointer; transition: background-color 0.2s; }
         .clickable:hover { background-color: #e2e6ea; }
@@ -100,10 +103,10 @@
         .today-name-text { color: #d84315 !important; font-weight: 900 !important; font-size: 22px !important; }
         
         .swap-text { color: #0288d1; text-decoration: underline dashed; }
-        .temp-text { color: #9c27b0; font-style: italic; } /* 替换人员 */
-        .insert-text { color: #e91e63; font-weight: bold; } /* 新增人员 */
+        .temp-text { color: #9c27b0; font-style: italic; } 
+        .insert-text { color: #e91e63; font-weight: bold; } 
         .holiday-duty-text { color: #d84315; font-weight: bold; }
-        .badge { font-size: 12px; color: #666; font-weight: normal; text-decoration: none; font-style: normal; }
+        .badge { font-size: 12px; color: #666; font-weight: normal; text-decoration: none; font-style: normal; display: inline-block; margin-top: 2px; }
 
         /* ====== 弹出菜单与提示横幅 ====== */
         .context-menu {
@@ -124,11 +127,7 @@
         }
         .swap-banner:hover { background: #e68a00; }
 
-        /* ====== 悬浮切换月份按钮 ====== */
-        .month-floater {
-            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
-            display: flex; flex-direction: column; gap: 15px; z-index: 999;
-        }
+        /* ====== 悬浮按钮公共样式 ====== */
         .float-btn {
             width: 50px; height: 50px; border-radius: 50%; background: #fff;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2); border: 2px solid #007bff;
@@ -139,11 +138,49 @@
         .float-btn:hover { background: #007bff; color: #fff; transform: scale(1.1); }
         .float-btn:active { transform: scale(0.95); }
 
+        /* ====== 悬浮切换月份按钮 (右侧中部) ====== */
+        .month-floater {
+            position: fixed; right: 20px; top: 50%; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 15px; z-index: 999;
+        }
+
+        /* ====== 悬浮“今”字按钮 (右侧下方) ====== */
+        .today-floater {
+            position: fixed; right: 20px; bottom: 30px; z-index: 999;
+        }
+
+        /* ====== 悬浮设置按钮 (左上角) ====== */
+        .settings-floater {
+            position: fixed; left: 20px; top: 20px; z-index: 999;
+        }
+
+        /* ====== 设置面板弹窗样式 (半透明) ====== */
+        .settings-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.4); display: none;
+            justify-content: center; align-items: center; z-index: 3000;
+            padding: 15px; box-sizing: border-box;
+        }
+        .settings-panel {
+            background: rgba(255, 255, 255, 0.88); 
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); 
+            padding: 25px; border-radius: 12px; width: 100%; max-width: 900px;
+            max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            position: relative; font-family: sans-serif;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .settings-panel .close-btn {
+            position: absolute; right: 20px; top: 15px; font-size: 32px;
+            cursor: pointer; color: #666; line-height: 1; user-select: none; transition: color 0.2s;
+        }
+        .settings-panel .close-btn:hover { color: red; }
+        .settings-panel h2 { margin-top: 0; margin-bottom: 20px; font-size: 22px; border-bottom: 2px solid #007bff; padding-bottom: 10px; display: inline-block; }
+
         /* ====== 人员选择弹窗样式 ====== */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); display: none;
-            justify-content: center; align-items: center; z-index: 2000;
+            justify-content: center; align-items: center; z-index: 4000;
             font-family: sans-serif; padding: 15px;
         }
         .custom-modal {
@@ -165,16 +202,15 @@
         .staff-chip.candidate-chip { background: #e0f7fa; border-color: #4dd0e1; }
         .staff-chip.candidate-chip:hover { background: #b2ebf2; color: #00838f; border-color: #00838f; }
 
-        .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; min-width: 700px; }
+        .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; flex-shrink: 0; }
 
-        /* ====== 移动端专用媒体查询优化 ====== */
+        /* ====== 移动端浮动按钮定位优化 ====== */
         @media screen and (max-width: 768px) {
-            body { padding: 10px; }
-            .month-floater { right: 10px; transform: translateY(-30%); gap: 10px; }
+            .month-floater { right: 10px; gap: 10px; }
+            .today-floater { right: 10px; bottom: 20px; }
+            .settings-floater { left: 10px; top: 10px; }
             .float-btn { width: 40px; height: 40px; font-size: 18px; }
-            .no-print { padding: 15px; }
-            .a4-page { padding: 10px; }
-            h1 { font-size: 22px; margin-bottom: 15px; }
+            .settings-panel { padding: 15px; }
             .control-group { flex-direction: column; align-items: stretch; gap: 8px; }
             .control-group > div { width: 100%; justify-content: flex-start; }
             .control-group button { flex: 1; text-align: center; }
@@ -182,21 +218,33 @@
 
         /* ====== 打印机专用样式 ====== */
         @media print {
-            @page { size: A4 landscape; margin: 5mm; }
-            body { background: white; padding: 0; margin: 0; display: block; overflow: visible; }
-            .no-print, .context-menu, .swap-banner, .modal-overlay, .month-floater { display: none !important; }
-            .a4-page { 
-                box-shadow: none; margin: 0; padding: 5mm 10mm; 
-                width: 100%; max-width: none; overflow-x: visible; height: 100%; page-break-after: avoid; 
+            @page { size: A4 landscape; margin: 0; }
+            html, body { 
+                width: 100%; height: 100%; margin: 0; padding: 0; background: white; 
+                overflow: hidden !important; 
             }
-            table { min-width: auto; } /* 恢复打印物理宽度 */
-            .date-range { min-width: auto; }
-            .remarks { min-width: auto; margin-top: 15px; font-size: 12.5px; line-height: 1.4; }
-            h1 { font-size: 24px; margin-bottom: 10px; }
-            .date-range { font-size: 14px; margin-bottom: 5px; }
-            th { padding: 6px 0; font-size: 15px; }
-            .row-date td { height: 26px; padding: 4px 0; font-size: 14px; }
-            .row-name td { height: 36px; font-size: 17px; }
+            .no-print, .context-menu, .swap-banner, .modal-overlay, .month-floater, .settings-floater, .settings-overlay, .today-floater { display: none !important; }
+            
+            #scaleContainer { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; margin: 0; padding: 0; }
+            #scaleWrapper { transform: none !important; width: 100%; height: 100% !important; margin: 0; display: flex; justify-content: center; align-items: center; }
+            
+            .a4-page { 
+                box-shadow: none; margin: 0; padding: 10mm 15mm; 
+                width: 297mm; height: 210mm; max-width: none; min-height: 0; 
+                box-sizing: border-box; 
+                display: flex; flex-direction: column; justify-content: space-between;
+                page-break-after: avoid; page-break-inside: avoid;
+            }
+            
+            table { flex: 1; height: auto; margin-bottom: 5px; width: 100%; table-layout: fixed; }
+            .remarks { margin-top: 5px; font-size: 13px; line-height: 1.4; flex-shrink: 0; }
+            h1 { font-size: 26px; margin: 0 0 10px 0; flex-shrink: 0; }
+            .date-range { font-size: 14px; margin: 0 0 5px 0; flex-shrink: 0; }
+            
+            /* 强制打印时表格也均等且按 1:2 比例、上下居中 */
+            th { padding: 5px 0; font-size: 15px; width: 14.285%; } 
+            .row-date td { height: 25px; padding: 0; font-size: 14px; vertical-align: middle; }
+            .row-name td { height: 50px; padding: 0; font-size: 16px; vertical-align: middle; }
             .swap-text, .temp-text, .insert-text { color: #000 !important; text-decoration: none; } 
         }
     </style>
@@ -205,9 +253,17 @@
 </head>
 <body>
 
-    <div class="month-floater">
+    <div class="settings-floater no-print">
+        <div class="float-btn" onclick="toggleSettings()" title="打开系统设置">⚙️</div>
+    </div>
+
+    <div class="month-floater no-print">
         <div class="float-btn" onclick="changeMonth(-1)" title="上一个月">▲</div>
         <div class="float-btn" onclick="changeMonth(1)" title="下一个月">▼</div>
+    </div>
+
+    <div class="today-floater no-print">
+        <div class="float-btn" onclick="goToToday()" title="返回今天所在月份" style="font-weight: bold; background: #e0f7fa; border-color: #00bcd4; color: #0097a7;">今</div>
     </div>
 
     <div id="swapBanner" class="swap-banner" onclick="cancelSwap()">🔄 换班模式：请在排班表中点击【非过去日期】的人员进行对调（点击此处取消）</div>
@@ -242,69 +298,78 @@
         </div>
     </div>
 
-    <div class="a4-page" id="printArea">
-        <h1>场馆带班安排表</h1>
-        <div class="date-range" id="dateRangeText">X月1日至X月31日</div>
-        <table id="scheduleTable">
-            <thead>
-                <tr><th colspan="7" style="font-weight: bold; letter-spacing: 5px;">7:00—20:00</th></tr>
-            </thead>
-            <tbody id="scheduleBody"></tbody>
-        </table>
-        <div class="remarks">
-            备注：1、带班人员负责巡视游泳馆及周边，督促各岗位员工履职，记录绩效。2、带班人员负责当天所有事务的处理、解决、协调、反馈。3、带班人员必须履职尽责，上下班打卡。4、带班人员带班时间7:00—9:00, 12:00—14:30、17:30—20:00，周一至周五当天上下午休息（与分管领导搭配AB岗位负责开放期间的各类工作）；周六、周日 7:00—20:00 全天带班。（有双休班时，晚上在双休下课，游泳馆各类事务平稳后下班）
+    <div id="settingsOverlay" class="settings-overlay no-print">
+        <div class="settings-panel">
+            <span class="close-btn" onclick="toggleSettings()" title="关闭设置">×</span>
+            <h2>⚙️ 排班系统设置</h2>
+            
+            <div class="control-group">
+                <label>排班时间：</label>
+                <div>
+                    <input type="number" id="yearInput" style="width: 70px;" onchange="onMonthChange()"> 年
+                    <select id="monthInput" onchange="onMonthChange()">
+                        <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                        <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+                        <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+                        <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                    </select> 月
+                </div>
+                
+                <label style="margin-left: 10px;">本月日常起排：</label>
+                <select id="startStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
+                
+                <label style="margin-left: 10px;">本月假期起排：</label>
+                <select id="startHolidayStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
+                
+                <button onclick="generateSchedule(); toggleSettings();" style="margin-left: auto;">刷新表格并关闭</button>
+            </div>
+            
+            <div class="control-group">
+                <label>添加人员：</label>
+                <input type="text" id="newStaff" placeholder="输入姓名" style="flex: 1; min-width: 100px;">
+                <button onclick="addStaff('normal')">日常</button>
+                <button onclick="addStaff('holiday')" class="btn-holiday">假期</button>
+                <button onclick="addStaff('candidate')" class="btn-candidate">候选</button>
+            </div>
+            
+            <div class="control-group" style="align-items: flex-start; flex-direction: column; background: rgba(248,249,250, 0.7); padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
+                <div style="width: 100%; display: flex; align-items: center;">
+                    <span style="font-weight:bold; color:#007bff; width: 85px; flex-shrink: 0;">日常值班：</span>
+                    <div class="staff-tags" id="staffContainer" style="flex:1;"></div>
+                </div>
+                <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                    <span style="font-weight:bold; color:#ff9800; width: 85px; flex-shrink: 0;">假期值班：</span>
+                    <div class="staff-tags" id="holidayStaffContainer" style="flex:1;"></div>
+                </div>
+                <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
+                    <span style="font-weight:bold; color:#17a2b8; width: 85px; flex-shrink: 0;">候选人员：</span>
+                    <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
+                </div>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
+            <div class="control-group" style="justify-content: space-between; flex-direction: row; margin-bottom: 0;">
+                <button class="export-btn" onclick="exportSettingsJS()">💾 保存全局配置 (setting.js)</button>
+                <button onclick="window.print()" style="background-color: #6c757d; font-size: 16px;">🖨️ 打印排班表</button>
+            </div>
         </div>
     </div>
 
-    <div class="no-print">
-        <div class="control-group">
-            <label>排班时间：</label>
-            <div>
-                <input type="number" id="yearInput" style="width: 70px;" onchange="onMonthChange()"> 年
-                <select id="monthInput" onchange="onMonthChange()">
-                    <option value="1">1</option><option value="2">2</option><option value="3">3</option>
-                    <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-                    <option value="7">7</option><option value="8">8</option><option value="9">9</option>
-                    <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-                </select> 月
+    <div id="scaleContainer">
+        <div id="scaleWrapper">
+            <div class="a4-page" id="printArea">
+                <h1>场馆带班安排表</h1>
+                <div class="date-range" id="dateRangeText">X月1日至X月31日</div>
+                <table id="scheduleTable">
+                    <thead>
+                        <tr><th colspan="7" style="font-weight: bold; letter-spacing: 5px;">7:00—20:00</th></tr>
+                    </thead>
+                    <tbody id="scheduleBody"></tbody>
+                </table>
+                <div class="remarks">
+                    备注：1、带班人员负责巡视游泳馆及周边，督促各岗位员工履职，记录绩效。2、带班人员负责当天所有事务的处理、解决、协调、反馈。3、带班人员必须履职尽责，上下班打卡。4、带班人员带班时间7:00—9:00, 12:00—14:30、17:30—20:00，周一至周五当天上下午休息（与分管领导搭配AB岗位负责开放期间的各类工作）；周六、周日 7:00—20:00 全天带班。（有双休班时，晚上在双休下课，游泳馆各类事务平稳后下班）
+                </div>
             </div>
-            
-            <label style="margin-left: 10px;">本月日常起排：</label>
-            <select id="startStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
-            
-            <label style="margin-left: 10px;">本月假期起排：</label>
-            <select id="startHolidayStaffIndex" onchange="generateSchedule()" style="width: 100px; flex: 1;"></select>
-            
-            <button onclick="generateSchedule()" style="margin-left: auto;">刷新表格</button>
-        </div>
-        
-        <div class="control-group">
-            <label>添加人员：</label>
-            <input type="text" id="newStaff" placeholder="输入姓名" style="flex: 1; min-width: 100px;">
-            <button onclick="addStaff('normal')">日常</button>
-            <button onclick="addStaff('holiday')" class="btn-holiday">假期</button>
-            <button onclick="addStaff('candidate')" class="btn-candidate">候选</button>
-        </div>
-        
-        <div class="control-group" style="align-items: flex-start; flex-direction: column; background: #f8f9fa; padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
-            <div style="width: 100%; display: flex; align-items: center;">
-                <span style="font-weight:bold; color:#007bff; width: 85px; flex-shrink: 0;">日常值班：</span>
-                <div class="staff-tags" id="staffContainer" style="flex:1;"></div>
-            </div>
-            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
-                <span style="font-weight:bold; color:#ff9800; width: 85px; flex-shrink: 0;">假期值班：</span>
-                <div class="staff-tags" id="holidayStaffContainer" style="flex:1;"></div>
-            </div>
-            <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
-                <span style="font-weight:bold; color:#17a2b8; width: 85px; flex-shrink: 0;">候选人员：</span>
-                <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
-            </div>
-        </div>
-
-        <hr style="border:0; border-top:1px solid #ccc; margin: 15px 0;">
-        <div class="control-group" style="justify-content: space-between; flex-direction: row;">
-            <button class="export-btn" onclick="exportSettingsJS()">💾 保存配置</button>
-            <button onclick="window.print()" style="background-color: #6c757d; font-size: 16px;">🖨️ 打印排班表</button>
         </div>
     </div>
 
@@ -333,6 +398,32 @@
         let swapSourceShiftKey = null;
         let currentModalAction = ''; 
 
+        // --- 核心更新：动态自适应缩放引擎 ---
+        function adjustScale() {
+            const wrapper = document.getElementById('scaleWrapper');
+            
+            // 先将包装器高度重置为自动，以便获取被内容撑开后的真实高度
+            wrapper.style.height = 'auto'; 
+            let targetHeight = wrapper.offsetHeight;
+            
+            // 设定最小基准高度（约等于 A4 横版比例 1122 x 794）
+            if (targetHeight < 794) {
+                targetHeight = 794;
+                wrapper.style.height = '794px';
+            }
+            
+            const targetWidth = 1122;
+            const winWidth = window.innerWidth - 20; 
+            const winHeight = window.innerHeight - 20;
+            
+            // 计算等比缩放因子
+            const scale = Math.min(winWidth / targetWidth, winHeight / targetHeight);
+            
+            wrapper.style.transform = `scale(${scale})`;
+        }
+
+        window.addEventListener('resize', adjustScale);
+
         // --- 初始化 ---
         const today = new Date();
         document.getElementById('yearInput').value = today.getFullYear();
@@ -347,6 +438,31 @@
                 document.getElementById('contextMenu').style.display = 'none';
             }
         });
+
+        // --- 悬浮设置控制逻辑 ---
+        function toggleSettings() {
+            const overlay = document.getElementById('settingsOverlay');
+            if (overlay.style.display === 'flex') {
+                overlay.style.display = 'none';
+            } else {
+                overlay.style.display = 'flex';
+            }
+        }
+        
+        // 点击半透明背景关闭设置弹窗
+        document.getElementById('settingsOverlay').addEventListener('click', function(e) {
+            if (e.target === this) {
+                toggleSettings();
+            }
+        });
+
+        // --- 返回今天逻辑 ---
+        function goToToday() {
+            const t = new Date();
+            document.getElementById('yearInput').value = t.getFullYear();
+            document.getElementById('monthInput').value = t.getMonth() + 1;
+            onMonthChange();
+        }
 
         // --- 切换月份功能 ---
         function changeMonth(offset) {
@@ -364,7 +480,7 @@
             
             document.getElementById('yearInput').value = year;
             document.getElementById('monthInput').value = month;
-            onMonthChange(); // 调用原有的月份变更处理逻辑
+            onMonthChange(); 
         }
 
         // --- 清理某槽位的换班/替换记录 ---
@@ -398,7 +514,6 @@
             const holContainer = document.getElementById('modalHolidayStaff');
             const candContainer = document.getElementById('modalCandidateStaff');
 
-            // 渲染日常名单
             normContainer.innerHTML = '';
             if(staffList.length === 0) normContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
             staffList.forEach(name => {
@@ -408,7 +523,6 @@
                 normContainer.appendChild(chip);
             });
 
-            // 渲染假期名单
             holContainer.innerHTML = '';
             if(holidayStaffList.length === 0) holContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
             holidayStaffList.forEach(name => {
@@ -418,7 +532,6 @@
                 holContainer.appendChild(chip);
             });
 
-            // 渲染候选名单
             candContainer.innerHTML = '';
             if(candidateStaffList.length === 0) candContainer.innerHTML = '<span style="font-size:12px;color:#999;">暂无数据</span>';
             candidateStaffList.forEach(name => {
@@ -428,17 +541,12 @@
                 candContainer.appendChild(chip);
             });
 
-            // 核心判定：根据当前点击格子是否为节假日，智能隐藏另一半菜单，候选人员始终显示
             if (currentMenuIsHoliday) {
-                normHeader.style.display = 'none';
-                normContainer.style.display = 'none';
-                holHeader.style.display = 'block';
-                holContainer.style.display = 'block';
+                normHeader.style.display = 'none'; normContainer.style.display = 'none';
+                holHeader.style.display = 'block'; holContainer.style.display = 'block';
             } else {
-                normHeader.style.display = 'block';
-                normContainer.style.display = 'block';
-                holHeader.style.display = 'none';
-                holContainer.style.display = 'none';
+                normHeader.style.display = 'block'; normContainer.style.display = 'block';
+                holHeader.style.display = 'none'; holContainer.style.display = 'none';
             }
 
             document.getElementById('staffModalOverlay').style.display = 'flex';
@@ -563,14 +671,17 @@
                 const menu = document.getElementById('contextMenu');
                 menu.style.display = 'flex';
                 
-                // 移动端菜单定位优化，防止超出屏幕
+                // 确保菜单不超出屏幕的越界安全处理
                 const menuWidth = 180;
+                const menuHeight = menu.offsetHeight || 180;
                 let leftPos = e.pageX;
-                if (leftPos + menuWidth > window.innerWidth) {
-                    leftPos = window.innerWidth - menuWidth - 10;
-                }
+                let topPos = e.pageY;
+                
+                if (leftPos + menuWidth > window.innerWidth) leftPos = window.innerWidth - menuWidth - 10;
+                if (topPos + menuHeight > window.innerHeight) topPos = window.innerHeight - menuHeight - 10;
+
                 menu.style.left = Math.max(10, leftPos) + 'px';
-                menu.style.top = e.pageY + 'px';
+                menu.style.top = Math.max(10, topPos) + 'px';
 
                 document.getElementById('menuHoliday').innerText = isHoliday ? '1. 取消公众假期' : '1. 设为公众假期';
                 
@@ -942,6 +1053,9 @@
             }
 
             tbody.appendChild(trDate); tbody.appendChild(trName);
+
+            // 每次排班表更新完毕后，主动重新计算整体高度与自适应缩放因子
+            adjustScale();
         }
 
         // --- 文件导出逻辑 ---
