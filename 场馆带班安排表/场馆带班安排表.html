@@ -22,9 +22,9 @@
         .control-group { margin-bottom: 15px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
         .control-group label { font-weight: bold; }
         
-        input[type="number"], input[type="text"], select {
+        input[type="number"], input[type="text"], input[type="date"], select {
             padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;
-            max-width: 100%;
+            max-width: 100%; box-sizing: border-box;
         }
 
         button {
@@ -197,12 +197,18 @@
             display: inline-block; padding: 6px 12px; margin: 4px;
             background: #e9ecef; border-radius: 15px; cursor: pointer; font-size: 13px;
             border: 1px solid #ccc; -webkit-tap-highlight-color: transparent;
+            transition: all 0.2s;
         }
         .staff-chip:hover { background: #d0e5ff; border-color: #007bff; color: #007bff; }
+        .staff-chip.selected { background: #d0e5ff; border-color: #007bff; color: #007bff; font-weight: bold; box-shadow: 0 0 5px rgba(0,123,255,0.5); }
+        
         .staff-chip.holiday-chip { background: #ffe0b2; border-color: #ffb74d; }
         .staff-chip.holiday-chip:hover { background: #ffcc80; color: #d84315; border-color: #d84315; }
+        .staff-chip.holiday-chip.selected { background: #ffcc80; border-color: #d84315; color: #d84315; font-weight: bold; box-shadow: 0 0 5px rgba(216,67,21,0.5); }
+        
         .staff-chip.candidate-chip { background: #e0f7fa; border-color: #4dd0e1; }
         .staff-chip.candidate-chip:hover { background: #b2ebf2; color: #00838f; border-color: #00838f; }
+        .staff-chip.candidate-chip.selected { background: #b2ebf2; border-color: #00838f; color: #00838f; font-weight: bold; box-shadow: 0 0 5px rgba(0,131,143,0.5); }
 
         .remarks { margin-top: 25px; font-size: 14px; line-height: 1.6; text-align: justify; flex-shrink: 0; }
 
@@ -283,7 +289,7 @@
         <div class="custom-modal">
             <div class="modal-title" id="staffModalTitle">安排值班人员</div>
             <div class="modal-body">
-                <input type="text" id="staffModalInput" placeholder="直接输入姓名，或在下方点击选择" style="width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 8px; border: 1px solid #aaa; border-radius: 4px;">
+                <input type="hidden" id="staffModalInput">
                 
                 <div id="normalStaffHeader" style="font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #007bff;">可选日常值班人员：</div>
                 <div id="modalNormalStaff" style="margin-bottom: 10px;"></div>
@@ -329,10 +335,10 @@
             
             <div class="control-group">
                 <label>添加人员：</label>
-                <input type="text" id="newStaff" placeholder="输入姓名" style="flex: 1; min-width: 100px;">
-                <button onclick="addStaff('normal')">日常</button>
-                <button onclick="addStaff('holiday')" class="btn-holiday">假期</button>
-                <button onclick="addStaff('candidate')" class="btn-candidate">候选</button>
+                <input type="text" id="newStaff" placeholder="输入姓名" style="width: 120px;">
+                <button onclick="addStaff('normal')">日常值班</button>
+                <button onclick="addStaff('holiday')" class="btn-holiday">假期值班</button>
+                <button onclick="addStaff('candidate')" class="btn-candidate">候选人员</button>
             </div>
             
             <div class="control-group" style="align-items: flex-start; flex-direction: column; background: rgba(248,249,250, 0.7); padding: 10px; border-radius: 6px; border: 1px solid #e9ecef;">
@@ -347,6 +353,17 @@
                 <div style="width: 100%; display: flex; align-items: center; margin-top: 8px;">
                     <span style="font-weight:bold; color:#17a2b8; width: 85px; flex-shrink: 0;">候选人员：</span>
                     <div class="staff-tags" id="candidateStaffContainer" style="flex:1;"></div>
+                </div>
+            </div>
+
+            <div class="control-group" style="background: rgba(248,249,250, 0.7); padding: 10px; border-radius: 6px; border: 1px solid #e9ecef; flex-direction: column; align-items: flex-start;">
+                <label style="color: #28a745;">批量暑期培训设置：</label>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap; width: 100%; align-items: center;">
+                    <input type="date" id="summerStartDate" style="flex: 1; min-width: 120px;"> 
+                    <span>至</span> 
+                    <input type="date" id="summerEndDate" style="flex: 1; min-width: 120px;">
+                    <button onclick="batchSetSummerTraining(true)" style="background-color: #28a745;">批量设置</button>
+                    <button onclick="batchSetSummerTraining(false)" style="background-color: #dc3545;">批量取消</button>
                 </div>
             </div>
 
@@ -387,7 +404,7 @@
         let globalConfig = appSettings.scheduleConfig || { holidays: [], monthStarts: {}, holidayMonthStarts: {}, overrides: {}, inserts: {}, summerTrainings: [], closedVenues: [] };
         let holidaySet = new Set(globalConfig.holidays); 
         let summerTrainingSet = new Set(globalConfig.summerTrainings || []); 
-        let closedVenueSet = new Set(globalConfig.closedVenues || []); // 新增：闭馆状态集合
+        let closedVenueSet = new Set(globalConfig.closedVenues || []); 
         let monthStarts = globalConfig.monthStarts || {}; 
         let holidayMonthStarts = globalConfig.holidayMonthStarts || {}; 
         let overrides = globalConfig.overrides || {}; 
@@ -408,7 +425,6 @@
             const currentYear = parseInt(document.getElementById('yearInput').value, 10);
             const currentMonth = parseInt(document.getElementById('monthInput').value, 10);
             
-            // 删除大于当前断点的所有未来月份缓存
             for (let key in monthStarts) {
                 let [y, m] = key.split('-').map(Number);
                 if (y > currentYear || (y === currentYear && m > currentMonth)) {
@@ -504,6 +520,46 @@
             onMonthChange(); 
         }
 
+        // --- 批量设置暑期培训功能 ---
+        function batchSetSummerTraining(isSet) {
+            const startVal = document.getElementById('summerStartDate').value;
+            const endVal = document.getElementById('summerEndDate').value;
+
+            if (!startVal || !endVal) {
+                alert("请先选择完整的开始和结束日期！");
+                return;
+            }
+
+            let startDate = new Date(startVal);
+            startDate.setHours(0, 0, 0, 0);
+            let endDate = new Date(endVal);
+            endDate.setHours(0, 0, 0, 0);
+
+            if (startDate > endDate) {
+                alert("开始日期不能晚于结束日期！");
+                return;
+            }
+
+            let currentDate = new Date(startDate);
+            while (currentDate <= endDate) {
+                let y = currentDate.getFullYear();
+                let m = currentDate.getMonth() + 1;
+                let d = currentDate.getDate();
+                let dateStr = `${y}-${m}-${d}`;
+
+                if (isSet) {
+                    summerTrainingSet.add(dateStr);
+                } else {
+                    summerTrainingSet.delete(dateStr);
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            invalidateFutureMonths();
+            generateSchedule();
+            alert(isSet ? "批量设置暑期培训成功！" : "批量取消暑期培训成功！");
+        }
+
         function cleanUpOverride(sKey) {
             if (overrides[sKey]) {
                 if (overrides[sKey].type === 'swap') {
@@ -539,7 +595,11 @@
             staffList.forEach(name => {
                 let chip = document.createElement('span');
                 chip.className = 'staff-chip'; chip.innerText = name;
-                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                chip.onclick = (e) => {
+                    document.getElementById('staffModalInput').value = name;
+                    document.querySelectorAll('.staff-chip').forEach(c => c.classList.remove('selected'));
+                    e.currentTarget.classList.add('selected');
+                };
                 normContainer.appendChild(chip);
             });
 
@@ -548,7 +608,11 @@
             holidayStaffList.forEach(name => {
                 let chip = document.createElement('span');
                 chip.className = 'staff-chip holiday-chip'; chip.innerText = name;
-                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                chip.onclick = (e) => {
+                    document.getElementById('staffModalInput').value = name;
+                    document.querySelectorAll('.staff-chip').forEach(c => c.classList.remove('selected'));
+                    e.currentTarget.classList.add('selected');
+                };
                 holContainer.appendChild(chip);
             });
 
@@ -557,7 +621,11 @@
             candidateStaffList.forEach(name => {
                 let chip = document.createElement('span');
                 chip.className = 'staff-chip candidate-chip'; chip.innerText = name;
-                chip.onclick = () => document.getElementById('staffModalInput').value = name;
+                chip.onclick = (e) => {
+                    document.getElementById('staffModalInput').value = name;
+                    document.querySelectorAll('.staff-chip').forEach(c => c.classList.remove('selected'));
+                    e.currentTarget.classList.add('selected');
+                };
                 candContainer.appendChild(chip);
             });
 
@@ -589,7 +657,7 @@
                 generateSchedule();
                 closeStaffModal();
             } else {
-                alert("请输入或选择人员姓名！");
+                alert("请先点击下方标签选择人员姓名！");
             }
         }
 
@@ -670,7 +738,9 @@
             if (!shiftKey) return; 
 
             if (swapSourceShiftKey) {
-                if (shiftKey === 'INSERT' || shiftKey === 'SUMMER' || shiftKey === 'CLOSED') { alert("非日常排班状态（新增人员、暑期培训、闭馆等）不参与换班！"); return; }
+                if (shiftKey === 'INSERT' || shiftKey === 'SUMMER' || shiftKey === 'CLOSED' || shiftKey === 'HOLIDAY_EMPTY') { 
+                    alert("非日常排班状态（新增人员、暑期培训、闭馆或无人假期等）不参与换班！"); return; 
+                }
                 if (shiftKey === swapSourceShiftKey) { alert("不能与自己换班！"); cancelSwap(); return; }
                 
                 const targetDateObj = parseDateStr(dateStr);
@@ -731,48 +801,65 @@
 
                 document.getElementById('menuHoliday').innerText = isHoliday ? '1. 取消公众假期' : '1. 设为公众假期';
                 
-                // === 动态修改菜单控制和名称逻辑 ===
-                if (shiftKey === 'INSERT' || shiftKey === 'SUMMER' || shiftKey === 'CLOSED') {
-                    // 非日常排班隐藏无关选项
+                if (shiftKey === 'SUMMER') {
                     document.getElementById('menuSwap').style.display = 'none';
                     document.getElementById('menuReplace').style.display = 'none';
                     document.getElementById('menuInsert').style.display = 'none';
+                    document.getElementById('menuSummer').style.display = 'block';
+                    document.getElementById('menuSummer').innerText = '2. 取消暑期培训';
+                    document.getElementById('menuClosed').style.display = 'none';
+                    document.getElementById('menuReset').style.display = 'none';
                     
-                    if (shiftKey === 'SUMMER') {
-                        document.getElementById('menuSummer').style.display = 'block';
-                        document.getElementById('menuSummer').innerText = '2. 取消暑期培训';
-                        document.getElementById('menuClosed').style.display = 'none';
-                        document.getElementById('menuReset').style.display = 'none';
-                    } else if (shiftKey === 'CLOSED') {
-                        document.getElementById('menuClosed').style.display = 'block';
-                        document.getElementById('menuClosed').innerText = '2. 取消关闭场馆';
-                        document.getElementById('menuSummer').style.display = 'none';
-                        document.getElementById('menuReset').style.display = 'none';
-                    } else if (shiftKey === 'INSERT') {
-                        document.getElementById('menuSummer').style.display = 'none';
-                        document.getElementById('menuClosed').style.display = 'none';
-                        document.getElementById('menuReset').innerText = '7. 取消新增人员';
-                        document.getElementById('menuReset').style.display = 'block';
-                    }
-                } else {
-                    // 日常排班全部放开
-                    document.getElementById('menuSwap').style.display = 'block';
-                    document.getElementById('menuReplace').style.display = 'block';
+                } else if (shiftKey === 'CLOSED') {
+                    document.getElementById('menuSwap').style.display = 'none';
+                    document.getElementById('menuReplace').style.display = 'none';
+                    document.getElementById('menuInsert').style.display = 'none';
+                    document.getElementById('menuClosed').style.display = 'block';
+                    document.getElementById('menuClosed').innerText = '2. 取消关闭场馆';
+                    document.getElementById('menuSummer').style.display = 'none';
+                    document.getElementById('menuReset').style.display = 'none';
+                    
+                } else if (shiftKey === 'INSERT') {
+                    document.getElementById('menuSwap').style.display = 'none';
+                    document.getElementById('menuReplace').style.display = 'none';
+                    document.getElementById('menuInsert').style.display = 'none';
+                    document.getElementById('menuSummer').style.display = 'none';
+                    document.getElementById('menuClosed').style.display = 'none';
+                    document.getElementById('menuReset').innerText = '2. 取消新增人员';
+                    document.getElementById('menuReset').style.display = 'block';
+                    
+                } else if (shiftKey === 'HOLIDAY_EMPTY') {
+                    document.getElementById('menuSwap').style.display = 'none';
+                    document.getElementById('menuReplace').style.display = 'none';
+                    
                     document.getElementById('menuInsert').style.display = 'block';
+                    document.getElementById('menuInsert').innerText = '2. 新增值班人员';
                     
                     document.getElementById('menuSummer').style.display = 'block';
-                    document.getElementById('menuSummer').innerText = '5. 新增暑期培训';
+                    document.getElementById('menuSummer').innerText = summerTrainingSet.has(dateStr) ? '3. 取消暑期培训' : '3. 新增暑期培训';
                     
                     document.getElementById('menuClosed').style.display = 'block';
-                    document.getElementById('menuClosed').innerText = '6. 新增关闭场馆';
+                    document.getElementById('menuClosed').innerText = closedVenueSet.has(dateStr) ? '4. 取消关闭场馆' : '4. 新增关闭场馆';
+                    
+                    document.getElementById('menuReset').style.display = 'none';
+                    
+                } else {
+                    document.getElementById('menuSwap').style.display = 'block';
+                    document.getElementById('menuSwap').innerText = '2. 值班人员换班';
+                    document.getElementById('menuReplace').style.display = 'block';
+                    document.getElementById('menuReplace').innerText = '3. 替换值班人员';
+                    document.getElementById('menuInsert').style.display = 'block';
+                    document.getElementById('menuInsert').innerText = '4. 新增值班人员';
+                    
+                    document.getElementById('menuSummer').style.display = 'block';
+                    document.getElementById('menuSummer').innerText = summerTrainingSet.has(dateStr) ? '5. 取消暑期培训' : '5. 新增暑期培训';
+                    
+                    document.getElementById('menuClosed').style.display = 'block';
+                    document.getElementById('menuClosed').innerText = closedVenueSet.has(dateStr) ? '6. 取消关闭场馆' : '6. 新增关闭场馆';
                     
                     if (overrides[shiftKey]) {
                         document.getElementById('menuReset').style.display = 'block';
-                        if (overrides[shiftKey].type === 'swap') {
-                            document.getElementById('menuReset').innerText = '7. 取消人员换班';
-                        } else {
-                            document.getElementById('menuReset').innerText = '7. 取消替换人员';
-                        }
+                        document.getElementById('menuReset').innerText = overrides[shiftKey].type === 'swap' ? '7. 取消人员换班' : '7. 取消替换人员';
                     } else {
                         document.getElementById('menuReset').style.display = 'none';
                     }
@@ -787,7 +874,7 @@
             const t = new Date(); t.setHours(0, 0, 0, 0); return t;
         }
 
-        // --- 智能追溯与跨月双轨自动衔接 ---
+        // --- 核心解绑逻辑：独立判断双轨计数引擎 ---
         function onMonthChange() {
             const year = parseInt(document.getElementById('yearInput').value, 10);
             const month = parseInt(document.getElementById('monthInput').value, 10);
@@ -815,6 +902,7 @@
                 
                 let normalCount = 0;
                 let holidayCount = 0;
+                
                 for (let d = 1; d <= days; d++) {
                     let dStr = `${pY}-${pM}-${d}`;
                     let isHol = holidaySet.has(dStr);
@@ -822,10 +910,14 @@
                     let isSummer = summerTrainingSet.has(dStr);
                     let isClosed = closedVenueSet.has(dStr);
                     
-                    // 遇到插入人员、暑期培训或闭馆时，本月消耗名额暂停累加，实现自动向后顺延
-                    if (!isIns && !isSummer && !isClosed) {
-                        if (!isHol) normalCount++;
-                        else holidayCount++;
+                    if (isClosed || isIns) continue;
+                    
+                    if (isHol) {
+                        holidayCount++;
+                    } else {
+                        if (!isSummer) {
+                            normalCount++;
+                        }
                     }
                 }
                 
@@ -1040,35 +1132,24 @@
                 let shiftKey = null;
                 let displayName = null;
 
-                // 优先级判定：闭馆 > 暑期培训 > 插入人员 > 假期/日常
+                // 渲染优先级：闭馆 > 插入人员 > 假期人员 > 暑期培训 > 常规排班
                 if (isClosedVenue) {
                     displayName = "闭馆";
                     tdName.innerHTML = `<span class="closed-text">${displayName}</span>`;
-                    if (isHoliday) {
-                        tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期)</span>`;
-                    }
+                    if (isHoliday) tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期值班)</span>`;
                     tdDate.onclick = (e) => handleCellClick(e, dateStr, 'CLOSED', isHoliday, displayName);
                     tdName.onclick = (e) => handleCellClick(e, dateStr, 'CLOSED', isHoliday, displayName);
-
-                } else if (isSummerTraining) {
-                    displayName = "暑期培训";
-                    tdName.innerHTML = `<span class="summer-text">${displayName}</span>`;
-                    if (isHoliday) {
-                        tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期)</span>`;
-                    }
-                    tdDate.onclick = (e) => handleCellClick(e, dateStr, 'SUMMER', isHoliday, displayName);
-                    tdName.onclick = (e) => handleCellClick(e, dateStr, 'SUMMER', isHoliday, displayName);
 
                 } else if (isInserted) {
                     displayName = globalConfig.inserts[dateStr];
                     tdName.innerHTML = `<span class="insert-text">${displayName} <span class="badge" style="color:#e91e63;">(增)</span></span>`;
-                    if (isHoliday) {
-                        tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期)</span>`;
-                    }
+                    if (isHoliday) tdName.innerHTML += `<br><span class="badge" style="color:#d84315;">(假期值班)</span>`;
+                    if (isSummerTraining) tdName.innerHTML += `<br><span class="badge" style="color:#28a745;">(暑期培训)</span>`;
                     tdDate.onclick = (e) => handleCellClick(e, dateStr, 'INSERT', isHoliday, displayName);
                     tdName.onclick = (e) => handleCellClick(e, dateStr, 'INSERT', isHoliday, displayName);
 
                 } else if (isHoliday) {
+                    // 解绑逻辑：只要是假期，永远优先上假期人员，暑期培训不能覆盖假期人员排班
                     if (holidayStaffList.length > 0) {
                         shiftKey = `${year}-${month}-H${monthHolidayIndex}`;
                         let basePerson = holidayStaffList[(startHolidayStaffIndex + monthHolidayIndex) % holidayStaffList.length];
@@ -1097,14 +1178,25 @@
                             tdName.innerHTML = `<span class="holiday-duty-text">${basePerson}<br><span class="badge" style="color:#d84315;">(假期值班)</span></span>`;
                         }
                         
+                        // 假期也可以被标记为暑期培训，但不影响排班，只多显示一个标记
+                        if (isSummerTraining) tdName.innerHTML += `<br><span class="badge" style="color:#28a745;">(暑期培训)</span>`;
+                        
                         tdDate.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
                         tdName.onclick = (e) => handleCellClick(e, dateStr, shiftKey, isHoliday, displayName);
                         monthHolidayIndex++; 
                     } else {
                         tdName.innerHTML = '<span class="holiday-text">公众假期<br>(无假期人员)</span>';
-                        tdDate.onclick = (e) => handleCellClick(e, dateStr, null, isHoliday, null);
-                        tdName.onclick = (e) => handleCellClick(e, dateStr, null, isHoliday, null);
+                        if (isSummerTraining) tdName.innerHTML += `<br><span class="badge" style="color:#28a745;">(暑期培训)</span>`;
+                        tdDate.onclick = (e) => handleCellClick(e, dateStr, 'HOLIDAY_EMPTY', isHoliday, null);
+                        tdName.onclick = (e) => handleCellClick(e, dateStr, 'HOLIDAY_EMPTY', isHoliday, null);
                     }
+                } else if (isSummerTraining) {
+                    // 只有日常碰到了暑期培训，才会直接覆盖显示“暑期培训”，并导致正常人员顺延
+                    displayName = "暑期培训";
+                    tdName.innerHTML = `<span class="summer-text">${displayName}</span>`;
+                    tdDate.onclick = (e) => handleCellClick(e, dateStr, 'SUMMER', isHoliday, displayName);
+                    tdName.onclick = (e) => handleCellClick(e, dateStr, 'SUMMER', isHoliday, displayName);
+
                 } else {
                     if (staffList.length > 0) {
                         shiftKey = `${year}-${month}-S${monthShiftIndex}`;
@@ -1171,7 +1263,7 @@
                 scheduleConfig: { 
                     holidays: Array.from(holidaySet), 
                     summerTrainings: Array.from(summerTrainingSet), 
-                    closedVenues: Array.from(closedVenueSet), // 导出保存闭馆配置
+                    closedVenues: Array.from(closedVenueSet), 
                     monthStarts: monthStarts, 
                     holidayMonthStarts: holidayMonthStarts, 
                     overrides: overrides,
