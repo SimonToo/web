@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公众假期与调休日历</title>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --holiday-color: #e74c3c;
+            --holiday-bg: #fad390;
+            --makeup-color: #4b6584;
+            --makeup-bg: #d1d8e0;
+            --bg-color: #f5f6fa;
+            --border-color: #dcdde1;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .calendar {
+            background: white;
+            width: 420px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: var(--primary-color);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .header button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 5px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+
+        .header button:hover {
+            background: rgba(255,255,255,0.4);
+        }
+
+        .header h2 {
+            margin: 0;
+            font-size: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .status-text {
+            font-size: 12px;
+            font-weight: normal;
+            opacity: 0.8;
+            margin-top: 4px;
+        }
+
+        .weekdays {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            text-align: center;
+            font-weight: bold;
+            color: #7f8fa6;
+            padding: 15px 0 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .days {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            padding: 10px;
+            gap: 5px;
+        }
+
+        .day {
+            min-height: 55px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: default;
+            position: relative;
+        }
+
+        .day:hover {
+            background-color: var(--bg-color);
+        }
+
+        .day.empty {
+            background: transparent;
+        }
+
+        .day.today {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* 标签通用样式 */
+        .day-label {
+            font-size: 10px;
+            margin-top: 2px;
+            font-weight: bold;
+            white-space: nowrap;
+            transform: scale(0.9);
+        }
+
+        /* --- 假期样式 --- */
+        .day.is-holiday {
+            color: var(--holiday-color);
+            background-color: var(--holiday-bg);
+        }
+        .day.is-holiday .day-label {
+            color: var(--holiday-color);
+        }
+        
+        /* --- 补班样式 --- */
+        .day.is-makeup {
+            color: var(--makeup-color);
+            background-color: var(--makeup-bg);
+        }
+        .day.is-makeup .day-label {
+            color: var(--makeup-color);
+        }
+
+        /* 今天的特殊覆盖 */
+        .day.today.is-holiday, .day.today.is-makeup {
+            background-color: var(--primary-color);
+            color: white;
+            box-shadow: inset 0 0 0 2px rgba(0,0,0,0.2);
+        }
+        .day.today.is-holiday .day-label, .day.today.is-makeup .day-label {
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="calendar">
+        <div class="header">
+            <button id="prevBtn">&lt;</button>
+            <h2>
+                <span id="monthYear">2026年 3月</span>
+                <span id="apiStatus" class="status-text">正在加载假期数据...</span>
+            </h2>
+            <button id="nextBtn">&gt;</button>
+        </div>
+        <div class="weekdays">
+            <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+        </div>
+        <div class="days" id="daysContainer"></div>
+    </div>
+
+    <script>
+        let currentDate = new Date(); 
+        const statusEl = document.getElementById('apiStatus');
+
+        let cachedHolidays = {};
+        let currentCachedYear = null;
+
+        async function fetchHolidays(year) {
+            if (currentCachedYear === year) {
+                return cachedHolidays;
+            }
+
+            statusEl.textContent = "正在同步节假日与调休数据...";
+            
+            try {
+                const response = await fetch(`https://timor.tech/api/holiday/year/${year}/`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const res = await response.json();
+                
+                if (res.code === 0) {
+                    const parsedHolidays = {};
+                    
+                    // 遍历数据提取放假和补班信息
+                    for (const key in res.holiday) {
+                        const item = res.holiday[key];
+                        // 存储为一个对象，记录名称和类型（是否为真正的假期）
+                        parsedHolidays[item.date] = {
+                            name: item.name,
+                            isHoliday: item.holiday // true 为放假，false 为补班
+                        };
+                    }
+
+                    cachedHolidays = parsedHolidays;
+                    currentCachedYear = year;
+                    statusEl.textContent = "数据已更新";
+                    
+                    setTimeout(() => { statusEl.textContent = ""; }, 3000);
+                    
+                    return parsedHolidays;
+                } else {
+                    throw new Error(res.msg || "API 返回数据异常");
+                }
+            } catch (error) {
+                console.error("获取假期失败。可能原因：跨域(CORS)拦截或接口限制 IP。", error);
+                statusEl.textContent = "数据获取失败 (查看控制台)";
+                statusEl.style.color = "#ffcccc";
+                return {};
+            }
+        }
+
+        function formatDate(year, month, day) {
+            const m = (month + 1).toString().padStart(2, '0');
+            const d = day.toString().padStart(2, '0');
+            return `${year}-${m}-${d}`;
+        }
+
+        async function renderCalendar() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            document.getElementById('monthYear').textContent = `${year}年 ${month + 1}月`;
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const realToday = new Date();
+
+            const holidays = await fetchHolidays(year);
+
+            const daysContainer = document.getElementById('daysContainer');
+            daysContainer.innerHTML = ''; 
+
+            for (let i = 0; i < firstDayIndex; i++) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.classList.add('day', 'empty');
+                daysContainer.appendChild(emptyDiv);
+            }
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dayDiv = document.createElement('div');
+                dayDiv.classList.add('day');
+                dayDiv.textContent = i;
+
+                if (year === realToday.getFullYear() && 
+                    month === realToday.getMonth() && 
+                    i === realToday.getDate()) {
+                    dayDiv.classList.add('today');
+                }
+
+                const dateString = formatDate(year, month, i);
+                
+                // 判断当天是否有特殊标记（放假或补班）
+                if (holidays[dateString]) {
+                    const dayInfo = holidays[dateString];
+                    const label = document.createElement('span');
+                    label.classList.add('day-label');
+                    
+                    if (dayInfo.isHoliday) {
+                        // 如果是放假
+                        dayDiv.classList.add('is-holiday');
+                        label.textContent = dayInfo.name.length > 4 ? dayInfo.name.substring(0, 3) + '..' : dayInfo.name;
+                    } else {
+                        // 如果是补班
+                        dayDiv.classList.add('is-makeup');
+                        // 补班通常直接显示“补班”或“班”更清晰
+                        label.textContent = '补班'; 
+                    }
+                    
+                    dayDiv.appendChild(label);
+                }
+
+                daysContainer.appendChild(dayDiv);
+            }
+        }
+
+        document.getElementById('prevBtn').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        document.getElementById('nextBtn').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        renderCalendar();
+    </script>
+</body>
+</html>
