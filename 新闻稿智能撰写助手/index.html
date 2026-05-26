@@ -170,25 +170,23 @@ function loadConfig() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       const cfg = JSON.parse(saved);
-      document.getElementById('apiBaseUrl').value = dec(cfg.u) || '';
-      document.getElementById('apiKey').value = dec(cfg.k) || '';
-      document.getElementById('apiModel').value = dec(cfg.m) || '';
+      document.getElementById('apiBaseUrl').value = cfg.u || '';
+      document.getElementById('apiModel').value = cfg.m || '';
     }
-  } catch(e) {}
+    const key = sessionStorage.getItem(STORAGE_KEY);
+    if (key) document.getElementById('apiKey').value = dec(key) || '';
+  } catch(e) { console.warn('loadConfig:', e); }
 }
 
 function saveConfig() {
-  const cfg = {
-    u: enc(document.getElementById('apiBaseUrl').value.trim()),
-    k: enc(document.getElementById('apiKey').value.trim()),
-    m: enc(document.getElementById('apiModel').value.trim()),
-    t: 0.7,
-    n: 2048,
-  };
-  if (!document.getElementById('apiBaseUrl').value.trim()) { showToast('请填写 API Base URL'); return false; }
-  if (!document.getElementById('apiKey').value.trim()) { showToast('请填写 API Key'); return false; }
-  if (!document.getElementById('apiModel').value.trim()) { showToast('请填写模型名称'); return false; }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+  const baseUrl = document.getElementById('apiBaseUrl').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const model = document.getElementById('apiModel').value.trim();
+  if (!baseUrl) { showToast('请填写 API Base URL'); return false; }
+  if (!apiKey) { showToast('请填写 API Key'); return false; }
+  if (!model) { showToast('请填写模型名称'); return false; }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ u: baseUrl, m: model, t: 0.7, n: 2048 }));
+  sessionStorage.setItem(STORAGE_KEY, enc(apiKey));
   showTag();
   showToast('配置已保存');
   return true;
@@ -223,6 +221,7 @@ function showTag() {
 
 function clearConfig() {
   localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
   document.getElementById('apiBaseUrl').value = '';
   document.getElementById('apiKey').value = '';
   document.getElementById('apiModel').value = '';
@@ -249,11 +248,19 @@ let isGenerating = false;
 let abortController = null;
 
 function cleanMarkdown(str) {
-  return str.replace(/^[#*、\-]+\s*/, '')
+  return str.replace(/^[#*\-]+\s*/, '')
     .replace(/\*{1,2}(.*?)\*{1,2}/g, '$1')
     .replace(/__([\s\S]*?)__/g, '$1')
     .replace(/[*_]+/g, '')
     .trim();
+}
+
+function isTitleBlock(text) {
+  if (!text) return false;
+  if (text.endsWith('。') || text.endsWith('！') || text.endsWith('？')) return false;
+  if (text.length > 120) return false;
+  if (/^[0-9一二三四五六七八九十\d]+月[0-9一二三四五六七八九十\d]+日/u.test(text)) return false;
+  return true;
 }
 
 function renderFormatted(text) {
@@ -261,12 +268,11 @@ function renderFormatted(text) {
   const blocks = text.split(/\n\n+/);
   const parts = [];
   let i = 0;
-  // Collect all leading title/subtitle blocks
   const titleParts = [];
   while (i < blocks.length) {
     const trimmed = blocks[i].trim();
     if (!trimmed) { i++; continue; }
-    if (trimmed.length < 80 && !trimmed.endsWith('。') && !trimmed.endsWith('！') && !trimmed.endsWith('？')) {
+    if (isTitleBlock(trimmed)) {
       titleParts.push(cleanMarkdown(trimmed.replace(/\n+/g, '')));
       i++;
     } else {
@@ -281,17 +287,16 @@ function renderFormatted(text) {
     if (!trimmed) continue;
     const paragraph = cleanMarkdown(trimmed.replace(/\n+/g, ''));
     if (!paragraph) continue;
-    const isSignature = i >= blocks.length - 2 && paragraph.length < 30;
+    const isSignature = /^[（(]/.test(paragraph) || /^【/.test(paragraph);
     const cls = isSignature ? ' class="signature"' : '';
     parts.push('<p' + cls + '>' + escapeHtml(paragraph) + '</p>');
   }
   return parts.join('\n');
 }
 
+const htmlEscapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return str.replace(/[&<>"']/g, ch => htmlEscapes[ch]);
 }
 
 loadConfig();
@@ -356,7 +361,7 @@ async function generate() {
       try {
         const errData = await resp.json();
         errMsg = errData.error?.message || errMsg;
-      } catch(e) {}
+      } catch(e) { console.warn('parse error response:', e); }
       throw new Error(errMsg);
     }
 
@@ -364,9 +369,26 @@ async function generate() {
     const decoder = new TextDecoder();
     let fullText = '';
     let buffer = '';
+    let renderPending = false;
+    let renderFullText = '';
 
     resultContent.innerHTML = '';
     resultContent.classList.remove('loading');
+
+    function flushRender() {
+      renderPending = false;
+      let html = renderFormatted(renderFullText);
+      const cursor = '<span class="cursor-blink">|</span>';
+      const lastP = html.lastIndexOf('</p>');
+      const lastH2 = html.lastIndexOf('</h2>');
+      const insertAt = Math.max(lastP, lastH2);
+      if (insertAt !== -1) {
+        html = html.slice(0, insertAt) + cursor + html.slice(insertAt);
+      } else {
+        html += cursor;
+      }
+      resultContent.innerHTML = html;
+    }
 
     while (true) {
       const { done, value } = await reader.read();
@@ -385,20 +407,13 @@ async function generate() {
           const delta = json.choices?.[0]?.delta?.content;
           if (delta) {
             fullText += delta;
-            let html = renderFormatted(fullText);
-            const cursor = '<span class="cursor-blink">|</span>';
-            const lastP = html.lastIndexOf('</p>');
-            const lastH2 = html.lastIndexOf('</h2>');
-            if (lastP !== -1) {
-              html = html.slice(0, lastP) + cursor + html.slice(lastP);
-            } else if (lastH2 !== -1) {
-              html = html.slice(0, lastH2) + cursor + html.slice(lastH2);
-            } else {
-              html += cursor;
+            renderFullText = fullText;
+            if (!renderPending) {
+              renderPending = true;
+              requestAnimationFrame(flushRender);
             }
-            resultContent.innerHTML = html;
           }
-        } catch(e) {}
+        } catch(e) { console.warn('SSE parse:', e); }
       }
     }
 
@@ -422,12 +437,14 @@ async function generate() {
 }
 
 function regenerate() {
-  if (isGenerating && abortController) {
-    abortController.abort();
-  }
-  // Wait for current cycle to fully settle, then re-generate
-  const wait = isGenerating ? 100 : 0;
-  setTimeout(() => generate(), wait);
+  if (!isGenerating) { generate(); return; }
+  if (abortController) abortController.abort();
+  const poll = setInterval(() => {
+    if (!isGenerating) {
+      clearInterval(poll);
+      generate();
+    }
+  }, 30);
 }
 
 function exportDoc() {
@@ -448,7 +465,7 @@ function exportDoc() {
     // Sanitize: strip script/style/event-handler attributes before export
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/gi, '')
     .replace('<h2>', '<h2 style="font-family:\'方正小标宋简体\',\'FZXiaoBiaoSong-B05S\',SimSun,\'宋体\',serif;font-size:18pt;text-align:center;font-weight:normal;line-height:28pt;mso-line-height-rule:exactly">')
     .replace('</h2>', '</h2><p style="' + pStyle + '">&nbsp;</p>')
     // Process signature FIRST so it doesn't get caught by generic <p> rule
