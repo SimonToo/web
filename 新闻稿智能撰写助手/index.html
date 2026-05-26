@@ -260,24 +260,30 @@ function renderFormatted(text) {
   if (!text) return '<div class="placeholder">点击「生成新闻稿」开始撰写</div>';
   const blocks = text.split(/\n\n+/);
   const parts = [];
-  let titleDone = false;
-  for (let i = 0; i < blocks.length; i++) {
+  let i = 0;
+  // Collect all leading title/subtitle blocks
+  const titleParts = [];
+  while (i < blocks.length) {
+    const trimmed = blocks[i].trim();
+    if (!trimmed) { i++; continue; }
+    if (trimmed.length < 80 && !trimmed.endsWith('。') && !trimmed.endsWith('！') && !trimmed.endsWith('？')) {
+      titleParts.push(cleanMarkdown(trimmed.replace(/\n+/g, '')));
+      i++;
+    } else {
+      break;
+    }
+  }
+  if (titleParts.length > 0) {
+    parts.push('<h2>' + escapeHtml(titleParts.join(' ')) + '</h2>');
+  }
+  for (; i < blocks.length; i++) {
     const trimmed = blocks[i].trim();
     if (!trimmed) continue;
-    if (!titleDone && trimmed.length < 80 && !trimmed.endsWith('。') && !trimmed.endsWith('！') && !trimmed.endsWith('？')) {
-      const title = cleanMarkdown(trimmed);
-      parts.push('<h2>' + escapeHtml(title) + '</h2>');
-      titleDone = true;
-    } else {
-      const lines = trimmed.split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        const cleaned = cleanMarkdown(line);
-        if (!cleaned) continue;
-        const isSignature = i >= blocks.length - 2 && cleaned.length < 30;
-        const cls = isSignature ? ' class="signature"' : '';
-        parts.push('<p' + cls + '>' + escapeHtml(cleaned) + '</p>');
-      }
-    }
+    const paragraph = cleanMarkdown(trimmed.replace(/\n+/g, ''));
+    if (!paragraph) continue;
+    const isSignature = i >= blocks.length - 2 && paragraph.length < 30;
+    const cls = isSignature ? ' class="signature"' : '';
+    parts.push('<p' + cls + '>' + escapeHtml(paragraph) + '</p>');
   }
   return parts.join('\n');
 }
