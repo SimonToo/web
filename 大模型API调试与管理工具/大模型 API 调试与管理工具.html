@@ -34,32 +34,6 @@
 <body class="bg-slate-100 text-gray-700 font-sans h-[100dvh] flex flex-col overflow-hidden">
 
 <div id="app" class="flex flex-col h-full max-w-[1600px] mx-auto w-full bg-white relative shadow-xl">
-
-    <div v-if="showPasswordOverlay" class="absolute inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 w-[90%] max-w-md m-4">
-            <div class="text-center mb-6">
-                <div class="bg-blue-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <i class="fa-solid fa-lock text-blue-600 text-2xl"></i>
-                </div>
-                <h2 class="text-xl font-bold text-gray-800">数据库已加密</h2>
-                <p class="text-sm text-gray-500 mt-1">请输入密码解密数据库</p>
-            </div>
-            <div class="space-y-4">
-                <input v-model="passwordInput" @keyup.enter="unlockDatabase" type="password"
-                       class="w-full border border-gray-300 rounded-xl p-3.5 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition"
-                       placeholder="请输入密码" :disabled="isUnlocking" ref="passwordInputRef">
-                <p v-if="passwordError" class="text-red-500 text-sm text-center">
-                    <i class="fa-solid fa-circle-exclamation mr-1"></i>{{ passwordError }}
-                </p>
-                <button @click="unlockDatabase" :disabled="isUnlocking || !passwordInput"
-                        class="w-full py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
-                    <i v-if="isUnlocking" class="fa-solid fa-spinner fa-spin"></i>
-                    <i v-else class="fa-solid fa-unlock"></i>
-                    <span>{{ isUnlocking ? '解密中...' : '解锁' }}</span>
-                </button>
-            </div>
-        </div>
-    </div>
     
     <header class="bg-slate-800 text-white px-3 md:px-6 py-3 flex justify-between items-center shrink-0 z-20 shadow-md">
         <div class="flex items-center gap-2 md:gap-3">
@@ -82,10 +56,14 @@
             <button @click="switchTab('manage')" :class="currentTab==='manage' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
                 <i class="fa-solid fa-server"></i> <span class="hidden sm:inline">接口管理</span><span class="sm:hidden">接口</span>
             </button>
-            <button @click="switchTab('favorites')" :class="currentTab==='favorites' ? 'bg-yellow-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
-                <i class="fa-solid fa-star"></i> <span class="hidden sm:inline">模型收藏</span><span class="sm:hidden">收藏</span>
-            </button>
-        </div>
+                            <button @click="switchTab('favorites')" :class="currentTab==='favorites' ? 'bg-yellow-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
+                                <i class="fa-solid fa-star"></i> <span class="hidden sm:inline">模型收藏</span><span class="sm:hidden">收藏</span>
+                            </button>
+                            <div class="w-[1px] h-5 bg-slate-600/50 mx-1"></div>
+                            <button @click="showSettings = true" class="text-gray-400 hover:text-white px-2 md:px-3 py-1.5 md:py-2 rounded-md text-xs md:text-sm transition flex items-center gap-1.5 whitespace-nowrap" title="设置">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
+                        </div>
     </header>
 
     <main class="flex-1 overflow-hidden relative flex flex-col">
@@ -563,6 +541,105 @@
             </div>
         </transition>
 
+        <!-- Settings Popup -->
+        <transition name="fade">
+            <div v-if="showSettings" @click="showSettings = false" class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] flex items-center justify-center">
+                <div @click.stop class="bg-white rounded-2xl shadow-2xl w-[90%] max-w-md m-4 max-h-[85vh] overflow-y-auto">
+                    <div class="flex justify-between items-center p-5 border-b border-gray-100">
+                        <h2 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-gear mr-2"></i>设置</h2>
+                        <button @click="showSettings = false" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition"><i class="fa-solid fa-times"></i></button>
+                    </div>
+
+                    <div class="p-5 space-y-5">
+                        <!-- Status -->
+                        <div class="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">加密文件</span>
+                                <span class="font-mono text-xs">{{ hasEncFiles ? 'api.db.enc + model.db.enc ✅' : '不存在' }}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">解密状态</span>
+                                <span :class="isUnlocked ? 'text-green-600' : 'text-yellow-600'">{{ isUnlocked ? '✅ 已解密' : '🔒 未解密' }}</span>
+                            </div>
+                            <div v-if="sessionPassword" class="flex justify-between items-center text-gray-500">
+                                <span>导出密码</span>
+                                <span class="text-green-600">✅ 已设置</span>
+                            </div>
+                            <div v-if="isUnlocked" class="border-t border-gray-200 pt-2 flex justify-between text-gray-500">
+                                <span>📡 平台: {{ apiLibrary.length }} 个</span>
+                                <span>⭐ 收藏: {{ favoriteModels.length }} 个</span>
+                            </div>
+                        </div>
+
+                        <!-- Case 1: .enc exists, not unlocked -->
+                        <div v-if="hasEncFiles && !isUnlocked" class="space-y-3">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">解密密码</label>
+                            <input v-model="settingsPassword" @keyup.enter="unlockDatabase" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="请输入密码">
+                            <p v-if="settingsError" class="text-red-500 text-xs text-center">{{ settingsError }}</p>
+                            <button @click="unlockDatabase" :disabled="isProcessing || !settingsPassword" class="w-full py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                <i v-if="isProcessing" class="fa-solid fa-spinner fa-spin"></i>
+                                <i v-else class="fa-solid fa-unlock"></i>
+                                <span>{{ isProcessing ? '解密中...' : '解锁' }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Case 2: Unlocked -->
+                        <div v-if="isUnlocked" class="space-y-4">
+                            <!-- Change / Set Password -->
+                            <div class="border-t border-gray-200 pt-4 space-y-3">
+                                <label class="block text-xs font-bold text-gray-500 uppercase">{{ hasEncFiles ? '修改加密密码' : '设置导出密码' }}</label>
+                                <template v-if="hasEncFiles">
+                                    <input v-model="oldPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="当前密码">
+                                </template>
+                                <input v-model="newPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="新密码">
+                                <input v-model="confirmPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="确认新密码">
+                                <p v-if="settingsError" class="text-red-500 text-xs">{{ settingsError }}</p>
+                                <button @click="changePassword" :disabled="isProcessing || !newPw || !confirmPw || (hasEncFiles && !oldPw)" class="w-full py-3 rounded-xl text-white font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                    <i v-if="isProcessing" class="fa-solid fa-spinner fa-spin"></i>
+                                    <i v-else class="fa-solid fa-rotate"></i>
+                                    <span>{{ isProcessing ? '处理中...' : (hasEncFiles ? '修改密码并下载 .enc' : '设定密码') }}</span>
+                                </button>
+                            </div>
+
+                            <!-- Remove Encryption (only when .enc exists) -->
+                            <div v-if="hasEncFiles" class="border-t border-gray-200 pt-4 space-y-3">
+                                <label class="block text-xs font-bold text-red-500 uppercase">取消加密（下载明文 .db）</label>
+                                <input v-model="oldPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-red-500 outline-none transition" placeholder="输入密码确认">
+                                <button @click="removeEncryption" :disabled="isProcessing || !oldPw" class="w-full py-3 rounded-xl text-red-600 font-bold bg-red-50 border border-red-200 hover:bg-red-100 disabled:bg-gray-50 disabled:text-gray-300 disabled:border-gray-100 transition flex items-center justify-center gap-2 active:scale-[0.98]">
+                                    <i class="fa-solid fa-file-export"></i>
+                                    下载明文 .db
+                                </button>
+                            </div>
+
+                            <!-- Clear Password (plain .db mode) -->
+                            <div v-if="!hasEncFiles && sessionPassword" class="border-t border-gray-200 pt-4">
+                                <button @click="clearExportPassword" class="w-full py-3 rounded-xl text-orange-600 font-bold bg-orange-50 border border-orange-200 hover:bg-orange-100 transition active:scale-[0.98]">
+                                    <i class="fa-solid fa-ban mr-1"></i>清除导出密码
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Case 3: No .enc, no password set -->
+                        <div v-if="!hasEncFiles && !sessionPassword && !isUnlocked" class="space-y-3">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">设置导出加密密码</label>
+                            <p class="text-xs text-gray-400">设定密码后，备份接口/收藏夹时将自动加密下载 .enc 文件。</p>
+                            <input v-model="newPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="密码">
+                            <input v-model="confirmPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="确认密码">
+                            <p v-if="settingsError" class="text-red-500 text-xs text-center">{{ settingsError }}</p>
+                            <button @click="setExportPassword" :disabled="!newPw || !confirmPw" class="w-full py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>设定密码</span>
+                            </button>
+                        </div>
+
+                        <div class="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-100">
+                            💡 提交 GitHub 时仅提交 <code>.enc</code> 文件，<code>.db</code> 文件不要提交。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
     </main>
 </div>
 
@@ -571,16 +648,27 @@
 
     createApp({
         setup() {
+            let SQL;
+
             const currentTab = ref('debug');
             const apiLibrary = ref([]);
             const favoriteModels = ref([]);
             const showMobileConfig = ref(false);
             const showApiKey = ref(false);
-            const showPasswordOverlay = ref(true);
-            const passwordInput = ref('');
-            const passwordError = ref('');
-            const isUnlocking = ref(false);
-            const passwordInputRef = ref(null);
+
+            // 加密相关状态
+            const showSettings = ref(false);
+            const hasEncFiles = ref(false);
+            const isUnlocked = ref(false);
+            const isProcessing = ref(false);
+            const settingsPassword = ref('');
+            const settingsError = ref('');
+            const sessionPassword = ref('');
+            const oldPw = ref('');
+            const newPw = ref('');
+            const confirmPw = ref('');
+            const encApiDbBytes = ref(null);
+            const encModelDbBytes = ref(null);
 
             // 获取特定 API 对象（用于收藏列表中判断是否反代等）
             const getApiById = (id) => {
@@ -694,7 +782,50 @@
 
             const switchTab = (tab) => { currentTab.value = tab; showMobileConfig.value = false; };
             const maskKey = (key) => key && key.length > 8 ? key.substring(0, 4) + '......' + key.substring(key.length - 4) : '';
-            
+
+            // ======= Web Crypto 加密工具函数 =======
+            async function deriveKey(password, salt, usage) {
+                const enc = new TextEncoder();
+                const pwKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+                return crypto.subtle.deriveKey(
+                    { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+                    pwKey,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    [usage]
+                );
+            }
+
+            async function decryptBytes(data, password) {
+                const salt = data.slice(0, 16);
+                const nonce = data.slice(16, 28);
+                const ciphertext = data.slice(28);
+                const key = await deriveKey(password, salt, 'decrypt');
+                return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ciphertext));
+            }
+
+            async function encryptBytes(data, password) {
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const nonce = crypto.getRandomValues(new Uint8Array(12));
+                const key = await deriveKey(password, salt, 'encrypt');
+                const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, data);
+                const result = new Uint8Array(salt.length + nonce.length + encrypted.byteLength);
+                result.set(salt, 0);
+                result.set(nonce, 16);
+                result.set(new Uint8Array(encrypted), 28);
+                return result;
+            }
+
+            function downloadBlob(data, filename) {
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }
+            // =========================================
+
             const openDrawer = (item) => {
                 showApiKey.value = false; // 每次打开重置密码可见性
                 if (item) Object.assign(form, { ...item, useProxy: !!item.useProxy });
@@ -729,13 +860,26 @@
                 if (isDrawerOpen.value && form.id === id) closeDrawer();
             };
 
-            const handleExport = () => {
-                const content = `window.API_LIBRARY = ${JSON.stringify(apiLibrary.value, null, 4)};`;
-                const blob = new Blob([content], { type: 'application/javascript' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'api.js';
-                a.click();
+            const handleExport = async () => {
+                if (!sessionPassword.value) {
+                    alert('请先在设置中设定导出密码');
+                    showSettings.value = true;
+                    return;
+                }
+                const db = new SQL.Database();
+                db.run(`CREATE TABLE api_configs (
+                    id INTEGER PRIMARY KEY, platform TEXT NOT NULL, url TEXT NOT NULL,
+                    key TEXT NOT NULL, remark TEXT DEFAULT '', useProxy INTEGER DEFAULT 0
+                )`);
+                const stmt = db.prepare("INSERT INTO api_configs VALUES (?,?,?,?,?,?)");
+                apiLibrary.value.forEach(item => {
+                    stmt.run([item.id, item.platform, item.url, item.key, item.remark, item.useProxy ? 1 : 0]);
+                });
+                stmt.free();
+                const data = db.export();
+                db.close();
+                const encrypted = await encryptBytes(data, sessionPassword.value);
+                downloadBlob(encrypted, 'api.db.enc');
             };
 
             // 模型收藏功能
@@ -818,14 +962,148 @@
                 if (isFavDrawerOpen.value && favForm.id === id) closeFavDrawer();
             };
 
-            const handleFavExport = () => {
-                const content = `window.FAVORITE_MODELS = ${JSON.stringify(favoriteModels.value, null, 4)};`;
-                const blob = new Blob([content], { type: 'application/javascript' });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'model.js';
-                a.click();
+            const handleFavExport = async () => {
+                if (!sessionPassword.value) {
+                    alert('请先在设置中设定导出密码');
+                    showSettings.value = true;
+                    return;
+                }
+                const db = new SQL.Database();
+                db.run(`CREATE TABLE favorite_models (
+                    id INTEGER PRIMARY KEY, apiId INTEGER NOT NULL,
+                    platform TEXT DEFAULT '', url TEXT DEFAULT '', key TEXT DEFAULT '',
+                    modelName TEXT NOT NULL, remark TEXT DEFAULT ''
+                )`);
+                const stmt = db.prepare("INSERT INTO favorite_models VALUES (?,?,?,?,?,?,?)");
+                favoriteModels.value.forEach(item => {
+                    const api = getApiById(item.apiId);
+                    const platform = api?.useProxy ? `${api.platform}（反代）` : (api?.platform || '');
+                    const url = api?.useProxy ? `http://localhost:8317/proxy/${api.url}` : (api?.url || '');
+                    stmt.run([item.id, item.apiId, platform, url, api?.key || '', item.modelName, item.remark]);
+                });
+                stmt.free();
+                const data = db.export();
+                db.close();
+                const encrypted = await encryptBytes(data, sessionPassword.value);
+                downloadBlob(encrypted, 'model.db.enc');
             };
+
+            // ======= 密码 CRUD 函数 =======
+            const unlockDatabase = async () => {
+                if (!settingsPassword.value) return;
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    const apiPlain = await decryptBytes(encApiDbBytes.value, settingsPassword.value);
+                    const modelPlain = await decryptBytes(encModelDbBytes.value, settingsPassword.value);
+                    const apiDb = new SQL.Database(apiPlain);
+                    const modelDb = new SQL.Database(modelPlain);
+                    const r1 = apiDb.exec("SELECT id, platform, url, key, remark, useProxy FROM api_configs");
+                    if (r1.length > 0) {
+                        apiLibrary.value = r1[0].values.map(r => ({
+                            id: r[0], platform: r[1], url: r[2], key: r[3],
+                            remark: r[4] || '', useProxy: !!r[5]
+                        }));
+                    }
+                    const r2 = modelDb.exec("SELECT id, apiId, modelName, remark FROM favorite_models");
+                    if (r2.length > 0) {
+                        favoriteModels.value = r2[0].values.map(r => ({
+                            id: r[0], apiId: r[1], modelName: r[2], remark: r[3] || ''
+                        }));
+                    }
+                    apiDb.close();
+                    modelDb.close();
+                    sessionPassword.value = settingsPassword.value;
+                    isUnlocked.value = true;
+                    settingsPassword.value = '';
+                    showSettings.value = false;
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '密码错误，请重新输入';
+                    } else {
+                        settingsError.value = '解密失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const changePassword = async () => {
+                if (hasEncFiles.value && !oldPw.value) { settingsError.value = '请输入当前密码'; return; }
+                if (!newPw.value || !confirmPw.value) { settingsError.value = '请填写新密码'; return; }
+                if (newPw.value !== confirmPw.value) { settingsError.value = '两次输入的密码不一致'; return; }
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    if (hasEncFiles.value) {
+                        const apiPlain = await decryptBytes(encApiDbBytes.value, oldPw.value);
+                        const modelPlain = await decryptBytes(encModelDbBytes.value, oldPw.value);
+                        const apiEnc = await encryptBytes(apiPlain, newPw.value);
+                        const modelEnc = await encryptBytes(modelPlain, newPw.value);
+                        downloadBlob(apiEnc, 'api.db.enc');
+                        downloadBlob(modelEnc, 'model.db.enc');
+                    }
+                    sessionPassword.value = newPw.value;
+                    if (hasEncFiles.value && !isUnlocked.value) isUnlocked.value = true;
+                    oldPw.value = '';
+                    newPw.value = '';
+                    confirmPw.value = '';
+                    settingsError.value = '';
+                    alert(hasEncFiles.value ? '密码已修改，已下载新的加密文件，请替换服务器上的 .enc 文件' : '导出密码已设定');
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '当前密码错误';
+                    } else {
+                        settingsError.value = '操作失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const removeEncryption = async () => {
+                if (!oldPw.value) { settingsError.value = '请输入密码'; return; }
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    const apiPlain = await decryptBytes(encApiDbBytes.value, oldPw.value);
+                    const modelPlain = await decryptBytes(encModelDbBytes.value, oldPw.value);
+                    downloadBlob(apiPlain, 'api.db');
+                    downloadBlob(modelPlain, 'model.db');
+                    oldPw.value = '';
+                    settingsError.value = '';
+                    alert('已下载明文 .db 文件');
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '密码错误';
+                    } else {
+                        settingsError.value = '操作失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const setExportPassword = () => {
+                if (!newPw.value || !confirmPw.value) { settingsError.value = '请填写密码'; return; }
+                if (newPw.value !== confirmPw.value) { settingsError.value = '两次输入的密码不一致'; return; }
+                sessionPassword.value = newPw.value;
+                newPw.value = '';
+                confirmPw.value = '';
+                settingsError.value = '';
+                showSettings.value = false;
+            };
+
+            const clearExportPassword = () => {
+                sessionPassword.value = '';
+                newPw.value = '';
+                confirmPw.value = '';
+                settingsError.value = '';
+            };
+            // =================================
 
             let isJumpingToModel = false;
             const jumpToModel = (favItem) => {
@@ -1044,11 +1322,8 @@
                 isFetchingModels.value = true; fetchModelError.value = '';
                 
                 try {
-                    const reqUrl = apiConfig.useProxy ? 'http://localhost:8317/v1/models' : `${apiConfig.url}/models`;
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/models` : `${apiConfig.url}/models`;
                     const headers = { 'Authorization': `Bearer ${apiConfig.key}` };
-                    if (apiConfig.useProxy) {
-                        headers['X-Target-Url'] = apiConfig.url;
-                    }
 
                     const response = await fetch(reqUrl, { method: 'GET', headers });
                     if (!response.ok) throw new Error(`获取失败 (HTTP ${response.status})`);
@@ -1065,11 +1340,8 @@
                 isTestingModel.value = true;
                 
                 try {
-                    const reqUrl = apiConfig.useProxy ? 'http://localhost:8317/v1/chat/completions' : `${apiConfig.url}/chat/completions`;
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/chat/completions` : `${apiConfig.url}/chat/completions`;
                     const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.key}` };
-                    if (apiConfig.useProxy) {
-                        headers['X-Target-Url'] = apiConfig.url;
-                    }
 
                     const response = await fetch(reqUrl, {
                         method: 'POST',
@@ -1162,11 +1434,8 @@
                 });
 
                 try {
-                    const reqUrl = apiConfig.useProxy ? 'http://localhost:8317/v1/chat/completions' : `${apiConfig.url}/chat/completions`;
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/chat/completions` : `${apiConfig.url}/chat/completions`;
                     const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.key}` };
-                    if (apiConfig.useProxy) {
-                        headers['X-Target-Url'] = apiConfig.url;
-                    }
 
                     const response = await fetch(reqUrl, {
                         method: 'POST',
@@ -1241,115 +1510,56 @@
                 }
             };
 
-            const unlockDatabase = async () => {
-                if (!passwordInput.value) return;
-                isUnlocking.value = true;
-                passwordError.value = '';
-
+            onMounted(async () => {
                 try {
-                    const resp = await fetch('data.db.enc');
-                    if (!resp.ok) {
-                        if (resp.status === 404) throw new Error('NOT_ENCRYPTED');
-                        throw new Error(`无法加载 data.db.enc (HTTP ${resp.status})`);
-                    }
-                    const encrypted = new Uint8Array(await resp.arrayBuffer());
-
-                    const salt = encrypted.slice(0, 16);
-                    const nonce = encrypted.slice(16, 28);
-                    const ciphertextWithTag = encrypted.slice(28);
-
-                    const enc = new TextEncoder();
-                    const passwordKey = await crypto.subtle.importKey(
-                        'raw', enc.encode(passwordInput.value),
-                        'PBKDF2', false, ['deriveKey']
-                    );
-                    const aesKey = await crypto.subtle.deriveKey(
-                        { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
-                        passwordKey,
-                        { name: 'AES-GCM', length: 256 },
-                        false,
-                        ['decrypt']
-                    );
-
-                    const decrypted = await crypto.subtle.decrypt(
-                        { name: 'AES-GCM', iv: nonce },
-                        aesKey,
-                        ciphertextWithTag
-                    );
-
-                    const SQL = await initSqlJs({
-                        locateFile: f => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${f}`
+                    SQL = await initSqlJs({
+                        locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${file}`
                     });
-                    const db = new SQL.Database(new Uint8Array(decrypted));
 
-                    const r1 = db.exec("SELECT id, platform, url, key, remark, use_proxy FROM api_library ORDER BY id");
-                    if (r1.length) {
-                        apiLibrary.value = r1[0].values.map(r => ({
-                            id: r[0], platform: r[1], url: r[2], key: r[3],
-                            remark: r[4] || '', useProxy: r[5] === 1
-                        }));
-                    }
+                    const [apiEncResp, modelEncResp] = await Promise.all([
+                        fetch('api.db.enc').catch(() => null),
+                        fetch('model.db.enc').catch(() => null)
+                    ]);
 
-                    const r2 = db.exec("SELECT id, api_id, model_name, remark FROM favorite_models ORDER BY id");
-                    if (r2.length) {
-                        favoriteModels.value = r2[0].values.map(r => ({
-                            id: r[0], apiId: r[1], modelName: r[2], remark: r[3] || ''
-                        }));
-                    }
-                    db.close();
-
-                    showPasswordOverlay.value = false;
-                    passwordInput.value = '';
-                } catch (e) {
-                    if (e.message === 'NOT_ENCRYPTED') {
-                        try {
-                            const SQL = await initSqlJs({
-                                locateFile: f => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${f}`
-                            });
-                            const resp = await fetch('data.db');
-                            if (!resp.ok) throw new Error(`无法加载 data.db (HTTP ${resp.status})`);
-                            const db = new SQL.Database(new Uint8Array(await resp.arrayBuffer()));
-
-                            const r1 = db.exec("SELECT id, platform, url, key, remark, use_proxy FROM api_library ORDER BY id");
-                            if (r1.length) {
-                                apiLibrary.value = r1[0].values.map(r => ({
-                                    id: r[0], platform: r[1], url: r[2], key: r[3],
-                                    remark: r[4] || '', useProxy: r[5] === 1
-                                }));
-                            }
-
-                            const r2 = db.exec("SELECT id, api_id, model_name, remark FROM favorite_models ORDER BY id");
-                            if (r2.length) {
-                                favoriteModels.value = r2[0].values.map(r => ({
-                                    id: r[0], apiId: r[1], modelName: r[2], remark: r[3] || ''
-                                }));
-                            }
-                            db.close();
-                            showPasswordOverlay.value = false;
-                        } catch (e2) {
-                            passwordError.value = '无法加载数据库文件';
-                            console.error(e2);
-                        }
-                    } else if (e.name === 'OperationError') {
-                        passwordError.value = '密码错误，请重新输入';
+                    if (apiEncResp?.ok && modelEncResp?.ok) {
+                        encApiDbBytes.value = new Uint8Array(await apiEncResp.arrayBuffer());
+                        encModelDbBytes.value = new Uint8Array(await modelEncResp.arrayBuffer());
+                        hasEncFiles.value = true;
                     } else {
-                        passwordError.value = '解密失败: ' + e.message;
-                        console.error(e);
+                        const [apiRes, modelRes] = await Promise.all([
+                            fetch('api.db').catch(() => null),
+                            fetch('model.db').catch(() => null)
+                        ]);
+                        if (apiRes?.ok && modelRes?.ok) {
+                            const apiBuf = new Uint8Array(await apiRes.arrayBuffer());
+                            const modelBuf = new Uint8Array(await modelRes.arrayBuffer());
+                            const apiDb = new SQL.Database(apiBuf);
+                            const modelDb = new SQL.Database(modelBuf);
+                            const r1 = apiDb.exec("SELECT id, platform, url, key, remark, useProxy FROM api_configs");
+                            if (r1.length > 0) {
+                                apiLibrary.value = r1[0].values.map(row => ({
+                                    id: row[0], platform: row[1], url: row[2], key: row[3],
+                                    remark: row[4] || '', useProxy: !!row[5]
+                                }));
+                            }
+                            const r2 = modelDb.exec("SELECT id, apiId, modelName, remark FROM favorite_models");
+                            if (r2.length > 0) {
+                                favoriteModels.value = r2[0].values.map(row => ({
+                                    id: row[0], apiId: row[1], modelName: row[2], remark: row[3] || ''
+                                }));
+                            }
+                            apiDb.close();
+                            modelDb.close();
+                            isUnlocked.value = true;
+                        }
                     }
-                } finally {
-                    isUnlocking.value = false;
+                } catch (e) {
+                    console.error('数据库加载失败:', e);
                 }
-            };
-
-            onMounted(() => {
-                nextTick(() => {
-                    if (passwordInputRef.value) passwordInputRef.value.focus();
-                });
             });
 
             return {
                 currentTab, switchTab, apiLibrary, showMobileConfig, showApiKey, getApiById,
-                showPasswordOverlay, passwordInput, passwordError, isUnlocking, passwordInputRef, unlockDatabase,
                 sortedApiLibrary, uniquePlatforms,
                 searchQuery, filteredList, isDrawerOpen, form, openDrawer, closeDrawer, saveItem, deleteItem, handleExport, maskKey,
                 
@@ -1358,7 +1568,7 @@
                 showPlatformDropdown, filteredPlatforms, handlePlatformInput, handlePlatformFocus, togglePlatformDropdown, clearPlatform, handlePlatformBlur, selectPlatform,
 
                 favoriteModels, favSearchQuery, favFilterApiId, filteredFavList, isFavDrawerOpen, favForm, 
-                favAvailablePlatforms, // 新增的用于筛选收藏平台
+                favAvailablePlatforms,
                 openFavDrawer, openFavDrawerFromDebug, closeFavDrawer, saveFavItem, deleteFavItem, handleFavExport, getApiPlatformName, isCurrentModelFavorited, jumpToModel,
                 
                 selectedApiId, apiConfig, messages, userInput, isRequesting,
@@ -1366,7 +1576,11 @@
                 isTestingModel, testModel,
                 fileInput, attachedFiles, handleFileUpload, removeFile, isDeepThink, getFileIconClass, getFileColorClass, isParsingFile,
                 clearApiSelection, handleModelInput, handleModelFocus, toggleModelDropdown, clearModel,
-                fetchModels, insertQuickText, handleModelBlur, selectModel, sendRequest, clearMessages, renderMarkdown
+                fetchModels, insertQuickText, handleModelBlur, selectModel, sendRequest, clearMessages, renderMarkdown,
+
+                // 加密相关
+                showSettings, hasEncFiles, isUnlocked, isProcessing, settingsPassword, settingsError, sessionPassword, oldPw, newPw, confirmPw,
+                unlockDatabase, changePassword, removeEncryption, setExportPassword, clearExportPassword
             };
         }
     }).mount('#app');
