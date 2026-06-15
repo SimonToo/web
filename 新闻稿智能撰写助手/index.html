@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>江西省体育局 - 新闻稿智能撰写助手</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src *; img-src 'self' data:; font-src *;">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #333; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+.header { background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%); color: #fff; padding: 16px 24px; display: flex; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.15); flex-shrink: 0; }
+.header h1 { font-size: 20px; font-weight: 600; letter-spacing: 1px; flex: 1; }
+.header .subtitle { font-size: 13px; opacity: 0.85; margin-left: 12px; font-weight: 400; }
+.settings-btn { background: none; border: none; color: #fff; cursor: pointer; font-size: 22px; padding: 4px 8px; border-radius: 4px; opacity: 0.85; transition: opacity 0.2s; line-height: 1; font-family: inherit; }
+.settings-btn:hover { opacity: 1; background: rgba(255,255,255,0.15); }
+.container { max-width: 1200px; margin: 0 auto; padding: 20px; display: flex; gap: 20px; flex: 1; width: 100%; min-height: 0; }
+.container > div:first-child { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0; }
+.container > div:last-child { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+@media (max-width: 900px) { .container { flex-direction: column; } .container > div:first-child { width: auto; } }
+
+.panel { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.panel-header { padding: 14px 18px; font-size: 14px; font-weight: 600; background: #fafafa; border-bottom: 1px solid #eee; display: flex; align-items: center; justify-content: space-between; user-select: none; flex-shrink: 0; }
+.panel-body { padding: 18px; flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: #666; margin-bottom: 4px; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; outline: none; transition: border .2s; font-family: inherit; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #c0392b; }
+.form-group textarea { resize: vertical; min-height: 100px; }
+.form-group .hint { font-size: 11px; color: #999; margin-top: 3px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 24px; border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; text-decoration: none; }
+.btn-primary { background: #c0392b; color: #fff; }
+.btn-primary:hover { background: #a93226; }
+.btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+.btn-secondary { background: #f0f2f5; color: #555; }
+.btn-secondary:hover { background: #e4e6e9; }
+.btn-sm { padding: 6px 14px; font-size: 12px; }
+
+.spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid #eee; border-top-color: #c0392b; border-radius: 50%; animation: spin .6s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.cursor-blink { display: inline; animation: blink 0.8s step-end infinite; color: #c0392b; font-weight: bold; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 24px; background: #333; color: #fff; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999; }
+.toast.show { opacity: 1; }
+
+#mainInput { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; line-height: 1.7; outline: none; resize: none; min-height: 120px; font-family: inherit; transition: border .2s; flex: 1; }
+#mainInput:focus { border-color: #c0392b; }
+
+.error-msg { padding: 12px 16px; background: #fff0f0; border: 1px solid #ffd4d4; border-radius: 6px; color: #c0392b; font-size: 13px; margin-top: 10px; display: none; }
+.error-msg.show { display: block; }
+
+.saved-tag { font-size: 11px; color: #27ae60; margin-left: 6px; opacity: 0; transition: opacity .3s; }
+.saved-tag.show { opacity: 1; }
+
+.result-actions { display: flex; gap: 6px; }
+.result-content { padding: 18px; background: #fafafa; border-radius: 8px; border: 1px solid #eee; flex: 1; overflow-y: auto; min-height: 0; font-family: "FangSong", "仿宋", serif; line-height: 1.9; font-size: 16pt; color: #222; cursor: text; }
+.result-content:focus { outline: none; border-color: #c0392b; }
+.result-content .placeholder { color: #bbb; text-align: center; padding: 60px 0; }
+.result-content h2 { font-family: "方正小标宋简体", "FZXiaoBiaoSong-B05S", "SimSun", "宋体", serif; font-size: 18pt; text-align: center; line-height: 1.9; font-weight: normal; margin-bottom: 1.9em; }
+.result-content p { text-indent: 2em; margin: 0; text-align: justify; }
+.result-content .signature { text-indent: 0; text-align: right; margin-top: 1.9em; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 999; }
+.modal-overlay.show { display: flex; }
+.modal-box { background: #fff; border-radius: 12px; padding: 24px; width: 460px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+.modal-box h3 { font-size: 16px; margin-bottom: 16px; }
+.modal-box .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.divider { text-align: center; font-size: 12px; color: #999; margin: 14px 0; position: relative; }
+.divider::before, .divider::after { content: ""; position: absolute; top: 50%; width: 38%; height: 1px; background: #e5e7eb; }
+.divider::before { left: 0; }
+.divider::after { right: 0; }
+.picker-box { margin-top: 4px; }
+.picker-box .field { margin-bottom: 12px; }
+.picker-box .field label { display: block; font-size: 11px; font-weight: 700; color: #6b7280; margin-bottom: 3px; }
+.picker-box .field input, .picker-box .field select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; outline: none; box-sizing: border-box; font-family: inherit; }
+.picker-box .field input:focus, .picker-box .field select:focus { border-color: #c0392b; }
+.picker-box .error { color: #e74c3c; font-size: 13px; text-align: center; margin-bottom: 8px; display: none; }
+.picker-box .divider { text-align: center; font-size: 12px; color: #999; margin: 12px 0; position: relative; }
+.picker-box .divider::before, .picker-box .divider::after { content: ""; position: absolute; top: 50%; width: 38%; height: 1px; background: #e5e7eb; }
+.picker-box .divider::before { left: 0; }
+.picker-box .divider::after { right: 0; }
+.picker-box .picker-actions { display: flex; gap: 8px; margin-top: 12px; }
+.picker-box .picker-actions .btn { flex: 1; }
+.btn-success { background: #27ae60; color: #fff; }
+.btn-success:hover { background: #219a52; }
+.btn-back { background: #f0f2f5; color: #555; }
+.btn-back:hover { background: #e4e6e9; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+</head>
+<body>
+
+<div class="header">
+  <h1>江西省体育局 <span class="subtitle">新闻稿智能撰写助手</span></h1>
+  <button class="settings-btn" onclick="openSettings()" title="API 配置">&#9881;</button>
+</div>
+
+<div class="container">
+
+  <!-- Left Panel: Input -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">
+        <span>📝 撰写新闻稿</span>
+      </div>
+      <div class="panel-body">
+        <textarea id="mainInput" placeholder="请在此输入新闻事实/要点。"></textarea>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <div style="font-size:12px;color:#999">
+            <span id="charCount">0</span> 字
+          </div>
+          <button class="btn btn-primary" id="generateBtn" onclick="generate()">
+            生成新闻稿
+          </button>
+        </div>
+
+        <div class="error-msg" id="errorMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel: Result -->
+  <div>
+    <div class="panel">
+      <div class="panel-header">
+        <span>📄 生成的新闻稿</span>
+        <div class="result-actions">
+          <button class="btn btn-secondary btn-sm" onclick="exportDoc()">📋 导出Word</button>
+          <button class="btn btn-secondary btn-sm" onclick="regenerate()">🔄 重新生成</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="result-content" id="resultContent" contenteditable="true">
+          <div class="placeholder">点击「生成新闻稿」开始撰写</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <h3>&#9881; API 配置</h3>
+    <div class="form-group">
+      <label>API Base URL <span class="hint" style="font-weight:normal">(OpenAI 兼容格式)</span></label>
+      <input type="text" id="apiBaseUrl" placeholder="https://api.deepseek.com/v1">
+    </div>
+    <div class="form-group">
+      <label>API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>模型</label>
+      <input type="text" id="apiModel" placeholder="deepseek-chat">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="clearConfig();closeSettings()">清除</button>
+      <button class="btn btn-primary" onclick="handleSave()">保存</button>
+    </div>
+    <span class="saved-tag" id="savedTag">✓ 已保存</span>
+    <div class="divider"><span>或</span></div>
+    <button class="btn btn-secondary" onclick="showPicker()" style="width:100%">📦 从收藏导入</button>
+    <div class="picker-box" id="pickerBox" style="display:none"></div>
+  </div>
+</div>
+
+<script src="prompt.js"></script>
+<script src="html-docx.js"></script>
+<script>
+// ====== Config ======
+const STORAGE_KEY = '_jxns_v1';
+
+function enc(str) {
+  // Simple obfuscation to avoid plaintext API Key in localStorage
+  const s = btoa(str);
+  return s.split('').reverse().join('');
+}
+function dec(str) {
+  try {
+    return atob(str.split('').reverse().join(''));
+  } catch(e) { return ''; }
+}
+
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const cfg = JSON.parse(saved);
+      document.getElementById('apiBaseUrl').value = cfg.u || '';
+      document.getElementById('apiModel').value = cfg.m || '';
+    }
+    const key = sessionStorage.getItem(STORAGE_KEY);
+    if (key) document.getElementById('apiKey').value = dec(key) || '';
+  } catch(e) { console.warn('loadConfig:', e); }
+}
+
+function saveConfig() {
+  const baseUrl = document.getElementById('apiBaseUrl').value.trim();
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const model = document.getElementById('apiModel').value.trim();
+  if (!baseUrl) { showToast('请填写 API Base URL'); return false; }
+  if (!apiKey) { showToast('请填写 API Key'); return false; }
+  if (!model) { showToast('请填写模型名称'); return false; }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ u: baseUrl, m: model, t: 0.7, n: 2048 }));
+  sessionStorage.setItem(STORAGE_KEY, enc(apiKey));
+  showTag();
+  showToast('配置已保存');
+  return true;
+}
+
+function handleSave() {
+  if (saveConfig()) closeSettings();
+}
+
+function getConfig() {
+  let baseUrl = document.getElementById('apiBaseUrl').value.trim();
+  let apiKey = document.getElementById('apiKey').value.trim();
+  let model = document.getElementById('apiModel').value.trim();
+  if (!baseUrl || !apiKey || !model) {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const cfg = JSON.parse(saved);
+        if (!baseUrl) baseUrl = cfg.u || '';
+        if (!model) model = cfg.m || '';
+      } catch(e) {}
+    }
+    const key = sessionStorage.getItem(STORAGE_KEY);
+    if (!apiKey && key) apiKey = dec(key) || '';
+  }
+  return {
+    baseUrl,
+    apiKey,
+    model,
+    temperature: 0.7,
+    maxTokens: 2048,
+  };
+}
+
+function autoSaveConfig() {
+  const cfg = getConfig();
+  if (cfg.baseUrl || cfg.apiKey || cfg.model) {
+    saveConfig();
+  }
+}
+
+function showTag() {
+  const tag = document.getElementById('savedTag');
+  tag.classList.add('show');
+  setTimeout(() => tag.classList.remove('show'), 2000);
+}
+
+function clearConfig() {
+  localStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(STORAGE_KEY);
+  document.getElementById('apiBaseUrl').value = '';
+  document.getElementById('apiKey').value = '';
+  document.getElementById('apiModel').value = '';
+  showToast('配置已清除');
+}
+
+function openSettings() { document.getElementById('settingsModal').classList.add('show'); hidePicker(); }
+function closeSettings() { document.getElementById('settingsModal').classList.remove('show'); }
+
+document.getElementById('mainInput').addEventListener('input', function() {
+  document.getElementById('charCount').textContent = this.value.length;
+});
+
+['apiBaseUrl','apiKey','apiModel'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    el.addEventListener('change', autoSaveConfig);
+    el.addEventListener('input', autoSaveConfig);
+  }
+});
+
+// ====== State ======
+let isGenerating = false;
+let abortController = null;
+
+function cleanMarkdown(str) {
+  return str.replace(/^[#*\-]+\s*/, '')
+    .replace(/\*{1,2}(.*?)\*{1,2}/g, '$1')
+    .replace(/__([\s\S]*?)__/g, '$1')
+    .replace(/[*_]+/g, '')
+    .trim();
+}
+
+function isTitleBlock(text) {
+  if (!text) return false;
+  if (text.endsWith('。') || text.endsWith('！') || text.endsWith('？')) return false;
+  if (text.length > 120) return false;
+  if (/^[0-9一二三四五六七八九十\d]+月[0-9一二三四五六七八九十\d]+日/u.test(text)) return false;
+  return true;
+}
+
+function renderFormatted(text) {
+  if (!text) return '<div class="placeholder">点击「生成新闻稿」开始撰写</div>';
+  const blocks = text.split(/\n\n+/);
+  const parts = [];
+  let i = 0;
+  const titleParts = [];
+  while (i < blocks.length) {
+    const trimmed = blocks[i].trim();
+    if (!trimmed) { i++; continue; }
+    if (isTitleBlock(trimmed)) {
+      titleParts.push(cleanMarkdown(trimmed.replace(/\n+/g, '')));
+      i++;
+    } else {
+      break;
+    }
+  }
+  if (titleParts.length > 0) {
+    parts.push('<h2>' + escapeHtml(titleParts.join(' ')) + '</h2>');
+  }
+  for (; i < blocks.length; i++) {
+    const trimmed = blocks[i].trim();
+    if (!trimmed) continue;
+    const paragraph = cleanMarkdown(trimmed.replace(/\n+/g, ''));
+    if (!paragraph) continue;
+    const isSignature = /^[（(]/.test(paragraph) || /^【/.test(paragraph);
+    const cls = isSignature ? ' class="signature"' : '';
+    parts.push('<p' + cls + '>' + escapeHtml(paragraph) + '</p>');
+  }
+  return parts.join('\n');
+}
+
+const htmlEscapes = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, ch => htmlEscapes[ch]);
+}
+
+loadConfig();
+
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
+});
+
+// ====== Generate ======
+async function generate() {
+  if (isGenerating) return;
+
+  const input = document.getElementById('mainInput').value.trim();
+  if (!input) { showError('请输入新闻事实/要点'); return;   }
+
+  const cfg = getConfig();
+  if (!cfg.baseUrl || !cfg.apiKey) {
+    showError('请先在左侧面板配置 API Base URL 和 API Key');
+    return;
+  }
+
+  hideError();
+
+  const systemPrompt = SYSTEM_PROMPT;
+
+  const resultContent = document.getElementById('resultContent');
+  resultContent.contentEditable = false;
+  resultContent.innerHTML = '';
+  resultContent.classList.remove('error');
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  isGenerating = true;
+  abortController = new AbortController();
+
+  let apiUrl = cfg.baseUrl.replace(/\/+$/, '');
+  if (!apiUrl.endsWith('/v1')) apiUrl += '/v1';
+
+  try {
+    const resp = await fetch(apiUrl + '/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + cfg.apiKey,
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: input },
+        ],
+        temperature: cfg.temperature,
+        max_tokens: cfg.maxTokens,
+        stream: true,
+      }),
+      signal: abortController.signal,
+    });
+
+    if (!resp.ok) {
+      let errMsg = 'API 请求失败 (' + resp.status + ')';
+      try {
+        const errData = await resp.json();
+        errMsg = errData.error?.message || errMsg;
+      } catch(e) { console.warn('parse error response:', e); }
+      throw new Error(errMsg);
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+    let renderPending = false;
+    let renderFullText = '';
+
+    resultContent.innerHTML = '';
+    resultContent.classList.remove('loading');
+
+    function flushRender() {
+      renderPending = false;
+      let html = renderFormatted(renderFullText);
+      const cursor = '<span class="cursor-blink">|</span>';
+      const lastP = html.lastIndexOf('</p>');
+      const lastH2 = html.lastIndexOf('</h2>');
+      const insertAt = Math.max(lastP, lastH2);
+      if (insertAt !== -1) {
+        html = html.slice(0, insertAt) + cursor + html.slice(insertAt);
+      } else {
+        html += cursor;
+      }
+      resultContent.innerHTML = html;
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === 'data: [DONE]') continue;
+        if (!trimmed.startsWith('data: ')) continue;
+        try {
+          const json = JSON.parse(trimmed.slice(6));
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullText += delta;
+            renderFullText = fullText;
+            if (!renderPending) {
+              renderPending = true;
+              requestAnimationFrame(flushRender);
+            }
+          }
+        } catch(e) { console.warn('SSE parse:', e); }
+      }
+    }
+
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      resultContent.innerHTML = '<div class="placeholder">已取消生成</div>';
+    } else {
+      showError(e.message);
+      resultContent.innerHTML = '<div class="placeholder">生成失败，请重试</div>';
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = '生成新闻稿';
+  isGenerating = false;
+  // Remove cursor and enable editing
+  const cursorEl = resultContent.querySelector('.cursor-blink');
+  if (cursorEl) cursorEl.remove();
+  if (resultContent.querySelector('h2')) resultContent.contentEditable = true;
+  abortController = null;
+}
+
+function regenerate() {
+  if (!isGenerating) { generate(); return; }
+  if (abortController) abortController.abort();
+  const poll = setInterval(() => {
+    if (!isGenerating) {
+      clearInterval(poll);
+      generate();
+    }
+  }, 30);
+}
+
+function exportDoc() {
+  const el = document.getElementById('resultContent');
+  const text = el.textContent;
+  if (!text || text.includes('点击「生成新闻稿」开始撰写') || text.includes('正在生成')) {
+    showToast('没有可导出的内容');
+    return;
+  }
+
+  const title = el.querySelector('h2')?.textContent?.trim() || '新闻稿';
+  const safeName = title.replace(/[<>:"/\\|?*]/g, '').substring(0, 50) || '新闻稿';
+
+  const pStyle = 'font-family:\'FangSong\',\'仿宋\',serif;font-size:16pt;margin:0;text-align:justify;line-height:28pt;mso-line-height-rule:exactly';
+  const sigStyle = 'font-family:\'FangSong\',\'仿宋\',serif;font-size:16pt;margin:0;text-align:right;text-indent:0;line-height:28pt;mso-line-height-rule:exactly';
+
+  let bodyHtml = el.innerHTML
+    // Sanitize: strip script/style/event-handler attributes before export
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/gi, '')
+    .replace('<h2>', '<h2 style="font-family:\'方正小标宋简体\',\'FZXiaoBiaoSong-B05S\',SimSun,\'宋体\',serif;font-size:18pt;text-align:center;font-weight:normal;line-height:28pt;mso-line-height-rule:exactly">')
+    .replace('</h2>', '</h2><p style="' + pStyle + '">&nbsp;</p>')
+    // Process signature FIRST so it doesn't get caught by generic <p> rule
+    .replace(/<p class="signature">/g, '<p style="' + sigStyle + '">')
+    .replace(/<p>/g, '<p style="text-indent:32pt;' + pStyle + '">');
+
+  const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>' + bodyHtml + '</body></html>';
+
+  try {
+    const blob = htmlDocx.asBlob(html, {
+      margins: {
+        top: 1440,
+        bottom: 1440,
+        left: 1800,
+        right: 1800,
+        header: 851,
+        footer: 992,
+        gutter: 0,
+      },
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeName + '.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Word 文档已导出');
+  } catch(e) {
+    showToast('导出失败：' + e.message);
+  }
+}
+
+// ====== Utils ======
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('errorMsg').classList.remove('show');
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// Ctrl+Enter to generate
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    generate();
+  }
+});
+
+// ====== 远程收藏数据库（加密 SQLite） ======
+const REMOTE_DB_URL = 'https://web.tuchong.tk/大模型API调试与管理工具/model.db.enc';
+let pickerModels = [];
+let pickerDecrypted = false;
+
+// ----- 解密核心 -----
+async function deriveKey(password, salt, usage) {
+  const enc = new TextEncoder();
+  const pwKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+    pwKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    [usage]
+  );
+}
+
+async function decryptBytes(data, password) {
+  const salt = data.slice(0, 16);
+  const nonce = data.slice(16, 28);
+  const ciphertext = data.slice(28);
+  const key = await deriveKey(password, salt, 'decrypt');
+  return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ciphertext));
+}
+
+async function loadModels(password) {
+  const SQL = await initSqlJs({
+    locateFile: f => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${f}`
+  });
+  const resp = await fetch(REMOTE_DB_URL);
+  if (!resp.ok) throw new Error('无法加载远程数据库 (HTTP ' + resp.status + ')');
+  const encrypted = new Uint8Array(await resp.arrayBuffer());
+  const decrypted = await decryptBytes(encrypted, password);
+  const db = new SQL.Database(decrypted);
+  const result = db.exec('SELECT * FROM favorite_models ORDER BY platform, modelName');
+  db.close();
+  if (!result.length) throw new Error('数据库中没有模型数据');
+  return result[0].values.map(row => ({
+    id: row[0], apiId: row[1], platform: row[2] || '',
+    url: row[3] || '', key: row[4] || '',
+    modelName: row[5] || '', remark: row[6] || ''
+  }));
+}
+
+// ----- 辅助 -----
+function escHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function escAttr(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ----- UI 控制 -----
+function showPicker() {
+  document.querySelectorAll('#settingsModal .form-group').forEach(el => el.style.display = 'none');
+  document.querySelector('#settingsModal .modal-actions').style.display = 'none';
+  document.querySelector('#settingsModal .divider').style.display = 'none';
+  document.querySelector('#settingsModal .btn-secondary[onclick*="showPicker"]').style.display = 'none';
+  document.getElementById('pickerBox').style.display = 'block';
+  if (!pickerDecrypted) {
+    renderPasswordView();
+  } else {
+    renderModelListView();
+  }
+}
+
+function hidePicker() {
+  document.getElementById('pickerBox').style.display = 'none';
+  document.querySelectorAll('#settingsModal .form-group').forEach(el => el.style.display = '');
+  document.querySelector('#settingsModal .modal-actions').style.display = '';
+  document.querySelector('#settingsModal .divider').style.display = '';
+  document.querySelector('#settingsModal .btn-secondary[onclick*="showPicker"]').style.display = '';
+}
+
+function renderPasswordView() {
+  const box = document.getElementById('pickerBox');
+  box.innerHTML = `
+    <div class="field">
+      <label>解密密码</label>
+      <input type="password" id="pwInput" placeholder="请输入数据库解密密码" autocomplete="off">
+    </div>
+    <p class="error" id="pickerError"></p>
+    <div class="picker-actions">
+      <button class="btn btn-back" onclick="hidePicker()">← 返回</button>
+      <button class="btn btn-primary" id="decryptBtn">🔓 解密并加载</button>
+    </div>
+  `;
+  document.getElementById('decryptBtn').addEventListener('click', doDecrypt);
+  document.getElementById('pwInput').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') doDecrypt();
+  });
+  document.getElementById('pwInput').focus();
+}
+
+async function doDecrypt() {
+  const pw = document.getElementById('pwInput').value.trim();
+  const err = document.getElementById('pickerError');
+  const btn = document.getElementById('decryptBtn');
+  if (!pw) { err.textContent = '请输入密码'; err.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = '解密中...';
+  err.style.display = 'none';
+  try {
+    pickerModels = await loadModels(pw);
+    pickerDecrypted = true;
+    renderModelListView();
+  } catch (e) {
+    if (e.name === 'OperationError' || /password|密码|tag/i.test(e.message)) {
+      err.textContent = '密码错误，请重新输入';
+    } else {
+      err.textContent = '解密失败：' + e.message;
+    }
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = '🔓 解密并加载';
+  }
+}
+
+function renderModelListView() {
+  const platforms = [...new Set(pickerModels.map(m => m.platform))].sort();
+  const firstPlat = platforms[0] || '';
+  const firstModels = pickerModels.filter(m => m.platform === firstPlat);
+  const first = firstModels[0] || {};
+  const box = document.getElementById('pickerBox');
+  box.innerHTML = `
+    <div class="field">
+      <label>平台</label>
+      <select id="platSelect">
+        ${platforms.map(p => `<option value="${escAttr(p)}">${escHtml(p)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>模型</label>
+      <select id="modelSelect">
+        ${firstModels.map(m => `<option value="${escAttr(m.modelName)}">${escHtml(m.modelName)}</option>`).join('')}
+      </select>
+    </div>
+    <p class="error" id="pickerError"></p>
+    <div class="picker-actions">
+      <button class="btn btn-back" onclick="hidePicker()">← 返回</button>
+      <button class="btn btn-success" id="confirmBtn">✅ 确认使用</button>
+    </div>
+  `;
+
+  document.getElementById('platSelect').addEventListener('change', function() {
+    const plat = this.value;
+    const filtered = pickerModels.filter(m => m.platform === plat);
+    const sel = document.getElementById('modelSelect');
+    sel.innerHTML = filtered.map(m =>
+      `<option value="${escAttr(m.modelName)}">${escHtml(m.modelName)}</option>`
+    ).join('');
+  });
+
+  document.getElementById('confirmBtn').addEventListener('click', function() {
+    const plat = document.getElementById('platSelect').value;
+    const modelName = document.getElementById('modelSelect').value;
+    const m = pickerModels.find(x => x.platform === plat && x.modelName === modelName);
+    const err = document.getElementById('pickerError');
+    if (!m) { err.textContent = '请选择一个模型'; err.style.display = 'block'; return; }
+    const baseUrl = m.url || '';
+    const apiKey = m.key || '';
+    const model = m.modelName || '';
+    if (baseUrl && apiKey && model) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ u: baseUrl, m: model, t: 0.7, n: 2048 }));
+      sessionStorage.setItem(STORAGE_KEY, enc(apiKey));
+    }
+    hidePicker();
+    closeSettings();
+  });
+}
+</script>
+</body>
+</html>
