@@ -1,4 +1,0 @@
-大模型万能通用跨域反向代理
-监听端口 : 8317
-配置方式 : 在网页端 AI 设置中，将原来的真实 Base URL 替换为：http://localhost:8317/proxy/真实的Base_URL
-示例地址 : http://localhost:8317/proxy/https://opencode.ai/zen/v1
