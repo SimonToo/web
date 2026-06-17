@@ -429,7 +429,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
       </div>
       <div class="form-group">
         <label>API Key</label>
-        <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+        <input type="password" id="apiKey" placeholder="sk-..." autocomplete="new-password">
       </div>
       <div class="form-group">
         <label>模型名称</label>
@@ -672,6 +672,9 @@ function getConfig() {
 }
 
 function openSettings() {
+  document.getElementById('apiBaseUrl').value = '';
+  document.getElementById('apiKey').value = '';
+  document.getElementById('apiModel').value = '';
   document.getElementById('settingsModal').classList.add('show');
   var cached = sessionStorage.getItem('decrypted_models');
   if (cached) {
