@@ -425,7 +425,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
     <div id="manualConfig">
       <div class="form-group">
         <label>API Base URL</label>
-        <input type="text" id="apiBaseUrl" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
+        <input type="text" id="apiBaseUrl" placeholder="https://api.openai.com/v1">
       </div>
       <div class="form-group">
         <label>API Key</label>
@@ -436,13 +436,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
         <input type="text" id="apiModel" placeholder="gpt-4o">
       </div>
     </div>
+    <div id="manualActions" style="display:none;">
+      <div class="modal-actions" style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px;">
+        <button class="btn btn-outline" onclick="clearConfig()">清除</button>
+        <button class="btn btn-primary" onclick="saveConfig();closeSettings()">保存</button>
+      </div>
+    </div>
     <div style="border-top:1px solid var(--border);padding-top:14px;margin-top:14px;">
       <h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text);">🤖 从收藏库选择</h4>
       <div id="pickerContent"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" onclick="clearConfig()">清除</button>
-      <button class="btn btn-primary" onclick="saveConfig();closeSettings()">保存</button>
     </div>
   </div>
 </div>
@@ -619,48 +621,53 @@ function analyzeContent() {
 // ========== Config ==========
 function loadConfig() {
   try {
-    var saved = localStorage.getItem('wechat_editor_config');
+    var saved = sessionStorage.getItem('wechat_editor_config');
     if (saved) {
       var cfg = JSON.parse(saved);
-      document.getElementById('apiBaseUrl').value = cfg.baseUrl || 'https://api.openai.com/v1';
+      document.getElementById('apiBaseUrl').value = cfg.baseUrl || '';
       document.getElementById('apiKey').value = cfg.apiKey || '';
       document.getElementById('apiModel').value = cfg.model || '';
     }
   } catch(e) {}
 }
 
-function saveConfig() {
-  var cfg = {
-    baseUrl: document.getElementById('apiBaseUrl').value.trim(),
-    apiKey: document.getElementById('apiKey').value.trim(),
-    model: document.getElementById('apiModel').value.trim()
-  };
+function saveConfig(url, key, model) {
+  var cfg;
+  if (url !== undefined) {
+    cfg = { baseUrl: url, apiKey: key, model: model };
+  } else {
+    cfg = {
+      baseUrl: document.getElementById('apiBaseUrl').value.trim(),
+      apiKey: document.getElementById('apiKey').value.trim(),
+      model: document.getElementById('apiModel').value.trim()
+    };
+  }
   if (!cfg.baseUrl || !cfg.apiKey) return showToast('请填写 API Base URL 和 API Key');
   if (!cfg.model) return showToast('请填写模型名称');
-  localStorage.setItem('wechat_editor_config', JSON.stringify(cfg));
+  sessionStorage.setItem('wechat_editor_config', JSON.stringify(cfg));
   showToast('配置已保存');
 }
 
 function clearConfig() {
-  localStorage.removeItem('wechat_editor_config');
-  document.getElementById('apiBaseUrl').value = 'https://api.openai.com/v1';
+  sessionStorage.removeItem('wechat_editor_config');
+  document.getElementById('apiBaseUrl').value = '';
   document.getElementById('apiKey').value = '';
   document.getElementById('apiModel').value = '';
   showToast('配置已清除');
 }
 
 function getConfig() {
-  var baseUrl = document.getElementById('apiBaseUrl').value.trim();
-  var apiKey = document.getElementById('apiKey').value.trim();
-  var model = document.getElementById('apiModel').value.trim();
-  if (baseUrl && apiKey && model) return { baseUrl: baseUrl, apiKey: apiKey, model: model };
   try {
-    var saved = localStorage.getItem('wechat_editor_config');
+    var saved = sessionStorage.getItem('wechat_editor_config');
     if (saved) {
       var cfg = JSON.parse(saved);
       if (cfg.baseUrl && cfg.apiKey && cfg.model) return cfg;
     }
   } catch(e) {}
+  var baseUrl = document.getElementById('apiBaseUrl').value.trim();
+  var apiKey = document.getElementById('apiKey').value.trim();
+  var model = document.getElementById('apiModel').value.trim();
+  if (baseUrl && apiKey && model) return { baseUrl: baseUrl, apiKey: apiKey, model: model };
   return { baseUrl: '', apiKey: '', model: '' };
 }
 
@@ -730,6 +737,7 @@ async function loadModels(password) {
 
 function renderPasswordView() {
   document.getElementById('manualConfig').style.display = '';
+  document.getElementById('manualActions').style.display = '';
   document.getElementById('pickerContent').innerHTML =
     '<div class="picker-field">' +
       '<label class="picker-label">解密密码</label>' +
@@ -771,7 +779,6 @@ async function doDecrypt() {
 }
 
 function renderModelListView() {
-  document.getElementById('manualConfig').style.display = 'none';
   var platforms = [];
   var seen = {};
   for (var i = 0; i < _decryptedModels.length; i++) {
@@ -800,6 +807,12 @@ function renderModelListView() {
     '<p id="confirmError" class="picker-error"></p>' +
     '<button class="btn btn-primary btn-block" id="confirmBtn" style="padding:12px;border-radius:10px;font-weight:700;font-size:14px;">✅ 确认使用此模型</button>';
 
+  var lastPick = null;
+  try {
+    var pickStr = localStorage.getItem('wechat_editor_last_pick');
+    if (pickStr) lastPick = JSON.parse(pickStr);
+  } catch(e) {}
+
   document.getElementById('platSelect').addEventListener('change', function() {
     var plat = document.getElementById('platSelect').value;
     var filtered2 = _decryptedModels.filter(function(m) { return m.platform === plat; });
@@ -808,6 +821,22 @@ function renderModelListView() {
       return '<option value="' + escapeHtml(m.modelName) + '">' + escapeHtml(m.modelName) + '</option>';
     }).join('');
   });
+
+  if (lastPick && platforms.indexOf(lastPick.platform) !== -1) {
+    document.getElementById('platSelect').value = lastPick.platform;
+    var evt = document.createEvent('HTMLEvents');
+    evt.initEvent('change', false, true);
+    document.getElementById('platSelect').dispatchEvent(evt);
+    if (lastPick.modelName) {
+      var ms = document.getElementById('modelSelect');
+      for (var oi = 0; oi < ms.options.length; oi++) {
+        if (ms.options[oi].value === lastPick.modelName) {
+          ms.value = lastPick.modelName;
+          break;
+        }
+      }
+    }
+  }
 
   document.getElementById('confirmBtn').addEventListener('click', function() {
     var plat = document.getElementById('platSelect').value;
@@ -820,10 +849,8 @@ function renderModelListView() {
       }
     }
     if (!m) return;
-    document.getElementById('apiBaseUrl').value = m.url || '';
-    document.getElementById('apiKey').value = m.key || '';
-    document.getElementById('apiModel').value = m.modelName || '';
-    saveConfig();
+    localStorage.setItem('wechat_editor_last_pick', JSON.stringify({ platform: plat, modelName: modelName }));
+    saveConfig(m.url, m.key, m.modelName);
     closeSettings();
     showToast('已选择模型: ' + m.modelName);
   });
