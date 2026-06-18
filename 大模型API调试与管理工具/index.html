@@ -290,8 +290,7 @@
                 
                 <div class="relative w-full sm:w-64">
                     <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"></i>
-                    <input v-model="searchQuery" autocomplete="nope"
-                           @focus="handleSearchFocus" 
+                    <input v-if="currentTab === 'manage'" v-model="searchQuery" readonly @focus="handleSearchFocus; $event.target.removeAttribute('readonly')"
                            @blur="handleSearchBlur" 
                            @input="handleSearchInput" 
                            class="w-full pl-9 pr-14 h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:bg-white outline-none transition focus:ring-indigo-200 focus:border-indigo-400" 
@@ -447,7 +446,7 @@
                     </div>
                     <div class="relative w-full">
                         <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                        <input v-model="favSearchQuery" autocomplete="nope" class="w-full pl-10 pr-8 h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:bg-white outline-none transition focus:ring-yellow-200 focus:border-yellow-400" placeholder="搜索模型名称、备注...">
+                        <input v-if="currentTab === 'favorites'" v-model="favSearchQuery" readonly @focus="$event.target.removeAttribute('readonly')" class="w-full pl-10 pr-8 h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:bg-white outline-none transition focus:ring-yellow-200 focus:border-yellow-400" placeholder="搜索模型名称、备注...">
                         <div v-if="favSearchQuery" class="absolute inset-y-0 right-3 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="favSearchQuery = ''" title="清空搜索">
                             <i class="fa-solid fa-circle-xmark"></i>
                         </div>
