@@ -1,0 +1,1608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>大模型 API 调试与管理工具</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        details > summary { list-style: none; }
+        details > summary::-webkit-details-marker { display: none; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        /* 闪烁光标样式 */
+        .typing-cursor::after { content: '▋'; animation: blink 1s step-start infinite; color: #3b82f6; margin-left: 2px; vertical-align: bottom; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-enter-active, .slide-leave-active { transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .slide-enter-from, .slide-leave-to { transform: translateX(100%); }
+    </style>
+</head>
+<body class="bg-slate-100 text-gray-700 font-sans h-[100dvh] flex flex-col overflow-hidden">
+
+<div id="app" class="flex flex-col h-full max-w-[1600px] mx-auto w-full bg-white relative shadow-xl">
+    
+    <header class="bg-slate-800 text-white px-3 md:px-6 py-3 flex justify-between items-center shrink-0 z-20 shadow-md">
+        <div class="flex items-center gap-2 md:gap-3">
+            <button v-show="currentTab === 'debug'" @click="showMobileConfig = true" class="md:hidden bg-slate-700 hover:bg-slate-600 w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0 transition">
+                <i class="fa-solid fa-sliders"></i>
+            </button>
+            <div class="bg-blue-500 w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center shrink-0 hidden md:flex">
+                <i class="fa-solid fa-code text-white text-sm"></i>
+            </div>
+            <div class="leading-tight">
+                <h1 class="font-bold text-base md:text-lg">大模型开发工具</h1>
+                <p class="text-[10px] opacity-50 uppercase tracking-wider font-semibold hidden md:block">API Debugger & Manager</p>
+            </div>
+        </div>
+        
+        <div class="flex bg-slate-700/50 rounded-lg p-1 backdrop-blur-sm shrink-0 gap-1 overflow-x-auto no-scrollbar">
+            <button @click="switchTab('debug')" :class="currentTab==='debug' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
+                <i class="fa-solid fa-terminal"></i> <span class="hidden sm:inline">API 调试</span><span class="sm:hidden">调试</span>
+            </button>
+            <button @click="switchTab('manage')" :class="currentTab==='manage' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
+                <i class="fa-solid fa-server"></i> <span class="hidden sm:inline">接口管理</span><span class="sm:hidden">接口</span>
+            </button>
+                            <button @click="switchTab('favorites')" :class="currentTab==='favorites' ? 'bg-yellow-500 text-slate-900 shadow-md' : 'text-gray-400 hover:text-white'" class="px-3 md:px-4 py-1.5 md:py-2 rounded-md text-xs md:text-sm font-bold transition flex items-center gap-1.5 whitespace-nowrap">
+                                <i class="fa-solid fa-star"></i> <span class="hidden sm:inline">模型收藏</span><span class="sm:hidden">收藏</span>
+                            </button>
+                            <div class="w-[1px] h-5 bg-slate-600/50 mx-1"></div>
+                            <button @click="showSettings = true" class="text-gray-400 hover:text-white px-2 md:px-3 py-1.5 md:py-2 rounded-md text-xs md:text-sm transition flex items-center gap-1.5 whitespace-nowrap" title="设置">
+                                <i class="fa-solid fa-gear"></i>
+                            </button>
+                        </div>
+    </header>
+
+    <main class="flex-1 overflow-hidden relative flex flex-col">
+        
+        <div v-show="currentTab === 'debug'" class="flex flex-col md:flex-row h-full w-full relative overflow-hidden">
+            
+            <transition name="fade">
+                <div v-if="showMobileConfig" @click="showMobileConfig = false" class="md:hidden absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-30 touch-none"></div>
+            </transition>
+
+            <aside :class="showMobileConfig ? 'translate-x-0' : '-translate-x-full md:translate-x-0'" 
+                   class="absolute md:relative z-40 inset-y-0 left-0 h-full w-[85%] sm:w-[60%] md:w-1/3 lg:w-1/4 flex-col border-r border-gray-200 flex bg-white md:bg-gray-50 shrink-0 transition-transform duration-300 shadow-2xl md:shadow-none">
+                
+                <div class="md:hidden flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50 shrink-0">
+                    <span class="font-bold text-gray-700"><i class="fa-solid fa-sliders text-blue-500 mr-2"></i>参数配置</span>
+                    <button @click="showMobileConfig = false" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-200 text-gray-500 active:bg-gray-300 transition">
+                        <i class="fa-solid fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-4 space-y-5 pb-safe">
+                    <section>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">接口平台 <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <select v-model="selectedApiId" :class="!selectedApiId ? 'text-gray-400' : 'text-gray-700'" class="w-full p-2.5 pr-14 border border-gray-300 rounded-lg text-sm focus:ring-2 ring-blue-500 outline-none bg-white appearance-none cursor-pointer">
+                                <option :value="null" disabled class="hidden"></option>
+                                <option v-for="(api, index) in sortedApiLibrary" :key="api.id" :value="api.id" class="text-gray-700">
+                                    {{ index + 1 }}. {{ api.platform }} {{ api.useProxy ? '(反代)' : '' }}
+                                </option>
+                            </select>
+                            <div v-if="selectedApiId" class="absolute inset-y-0 right-7 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="clearApiSelection">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </div>
+                            <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none"></i>
+                        </div>
+                        <div v-if="apiConfig.url" class="text-[10px] text-gray-400 mt-1.5 truncate flex items-center gap-1 bg-gray-100 p-1.5 rounded">
+                            <i class="fa-solid fa-link"></i> {{ apiConfig.url }}
+                            <span v-if="apiConfig.useProxy" class="ml-auto text-purple-500 bg-purple-100 px-1 rounded"><i class="fa-solid fa-bolt"></i> 反代</span>
+                        </div>
+                        <div v-if="apiLibrary.length === 0" class="text-[10px] text-orange-500 mt-2">
+                            <i class="fa-solid fa-circle-exclamation"></i> 暂无接口数据，请前往“接口管理”添加。
+                        </div>
+                    </section>
+
+                    <section v-if="selectedApiId">
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">Model (模型名称)</label>
+                            <div class="flex items-center gap-2.5">
+                                <button @click="openFavDrawerFromDebug" :disabled="!apiConfig.model" class="text-[10px] font-bold transition flex items-center gap-1" :class="isCurrentModelFavorited ? 'text-yellow-500 hover:text-yellow-600' : 'text-gray-400 hover:text-yellow-500 disabled:opacity-50'" title="收藏当前模型">
+                                    <i class="fa-solid fa-star" :class="isCurrentModelFavorited ? '' : 'fa-regular'"></i> 收藏
+                                </button>
+                                <div class="w-[1px] h-3 bg-gray-200"></div>
+                                <button @click="testModel" :disabled="isTestingModel || !apiConfig.model" class="text-[10px] font-bold transition flex items-center gap-1" :class="(!isTestingModel && apiConfig.model) ? 'text-emerald-500 hover:text-emerald-600' : 'text-gray-400 disabled:opacity-50'" title="测试模型可用性">
+                                    <i class="fa-solid" :class="isTestingModel ? 'fa-spinner fa-spin' : 'fa-bolt'"></i> 测试
+                                </button>
+                                <button @click="fetchModels" :disabled="isFetchingModels" class="text-[10px] text-blue-500 hover:text-blue-700 disabled:text-gray-400 disabled:opacity-50 font-bold transition flex items-center gap-1">
+                                    <i class="fa-solid fa-rotate" :class="{'fa-spin': isFetchingModels}"></i> 刷新
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="relative w-full">
+                            <input v-model="apiConfig.model" @focus="handleModelFocus" @blur="handleModelBlur" @input="handleModelInput" type="text" placeholder="选择或输入模型..." class="w-full h-[38px] p-2 pr-14 border rounded-lg text-xs focus:ring-2 ring-blue-500 outline-none bg-white">
+                            <div v-if="apiConfig.model" class="absolute inset-y-0 right-7 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="clearModel">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </div>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-2.5 cursor-pointer" @mousedown.prevent="toggleModelDropdown">
+                                <i class="fa-solid fa-chevron-down text-gray-400 hover:text-gray-600 transition-transform duration-200" :class="{'rotate-180': showModelDropdown}"></i>
+                            </div>
+                            
+                            <div v-show="showModelDropdown && filteredModels.length > 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-56 overflow-y-auto" id="model-dropdown-list">
+                                <div v-for="item in filteredModels" :key="item.name" :id="'model-item-' + item.originalIndex" @mousedown.prevent="selectModel(item.name)" class="px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 transition-colors flex items-center" :class="{'bg-blue-100 text-blue-700 font-bold': apiConfig.model === item.name}">
+                                    <span class="mr-1.5">{{ item.originalIndex }}.</span>
+                                    <span class="truncate" :title="item.name">{{ item.name }}</span>
+                                </div>
+                            </div>
+                            <div v-show="showModelDropdown && availableModels.length > 0 && filteredModels.length === 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl px-3 py-4 text-center text-xs text-gray-400">
+                                没有找到匹配的模型...
+                            </div>
+                        </div>
+                        
+                        <p v-if="fetchModelError" class="text-[10px] text-red-500 mt-1"><i class="fa-solid fa-circle-exclamation"></i> {{ fetchModelError }}</p>
+                        <p v-else-if="availableModels.length > 0" class="text-[10px] text-green-500 mt-1"><i class="fa-solid fa-circle-check"></i> 成功加载 {{ availableModels.length }} 个模型</p>
+                    </section>
+
+                    <section>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">系统提示词</label>
+                        <div class="relative">
+                            <textarea v-model="apiConfig.systemPrompt" placeholder="你是..." class="w-full p-2 pr-8 border rounded-lg h-24 text-xs focus:ring-2 ring-blue-500 outline-none resize-none bg-white"></textarea>
+                            <div v-if="apiConfig.systemPrompt" class="absolute top-2 right-2 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="apiConfig.systemPrompt = ''" title="清空提示词">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <label class="block text-xs font-bold text-gray-500 mb-1 uppercase">Temperature (温度值)</label>
+                        <div class="flex items-center gap-2">
+                            <input v-model.number="apiConfig.temperature" type="range" min="0" max="2" step="0.1" class="flex-1">
+                            <span class="text-xs font-mono w-6 text-center">{{ apiConfig.temperature }}</span>
+                        </div>
+                    </section>
+                </div>
+            </aside>
+
+            <section class="flex-col relative h-full w-full flex bg-white min-w-0 flex-1">
+                <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 scroll-smooth bg-gray-50/50">
+                    <div v-if="messages.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <i class="fa-solid fa-paper-plane text-4xl md:text-5xl text-gray-200 mb-4"></i>
+                        <p class="text-sm text-gray-500">配置参数后，在下方输入内容开始测试</p>
+                        <button @click="showMobileConfig = true" class="md:hidden mt-4 text-blue-500 text-xs flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-full">
+                            <i class="fa-solid fa-sliders"></i> 点击配置接口
+                        </button>
+                    </div>
+                    
+                    <div v-for="(msg, index) in messages" :key="index" class="flex flex-col max-w-[95%] md:max-w-[85%]" :class="msg.role === 'user' ? 'self-end' : 'self-start'">
+                        <div class="text-[10px] text-gray-500 px-1 mb-1" :class="msg.role === 'user' ? 'text-right' : 'text-left'">
+                            <span class="font-bold">{{ msg.role === 'user' ? 'User' : 'Assistant' }}</span>
+                        </div>
+                        
+                        <div v-if="msg.files && msg.files.length > 0" class="flex flex-wrap gap-2 mb-2" :class="msg.role === 'user' ? 'justify-end' : ''">
+                            <div v-for="(file, idx) in msg.files" :key="idx" class="bg-blue-100/60 border border-blue-200 rounded-lg p-1.5 flex items-center gap-2 max-w-[220px] shadow-sm">
+                                <img v-if="file.isImage" :src="file.data" class="w-8 h-8 object-cover rounded shadow-sm shrink-0">
+                                <div v-else class="w-8 h-8 bg-white flex items-center justify-center rounded shadow-sm shrink-0" :class="getFileColorClass(file.name)">
+                                    <i class="fa-solid text-sm" :class="getFileIconClass(file.name)"></i>
+                                </div>
+                                <span class="text-xs text-gray-700 truncate flex-1" :title="file.name">{{ file.name }}</span>
+                            </div>
+                        </div>
+
+                        <div class="p-3.5 md:p-4 rounded-2xl shadow-sm text-sm border overflow-x-auto" 
+                             :class="msg.role === 'user' ? 'bg-blue-50 border-blue-100' : 'bg-white border-gray-200'">
+                            
+                            <details v-if="msg.reasoning && msg.useDeepThink" class="mb-3 group" open>
+                                <summary class="cursor-pointer text-gray-500 font-bold select-none outline-none flex items-center gap-2">
+                                    <i class="fa-solid fa-brain" :class="msg.isStreaming && !msg.content ? 'animate-pulse text-indigo-500' : ''"></i>
+                                    <span>{{ msg.isStreaming && !msg.content ? '深度思考中...' : '思考过程' }}</span>
+                                    <i class="fa-solid fa-chevron-right text-xs transition-transform group-open:rotate-90"></i>
+                                </summary>
+                                <div class="p-3 bg-gray-50 border-l-4 border-indigo-300 text-gray-500 text-sm mt-2 rounded-r-lg whitespace-pre-wrap font-mono leading-relaxed" v-html="renderMarkdown(msg.reasoning, msg.useDeepThink)"></div>
+                            </details>
+
+                            <div v-if="msg.content || msg.isStreaming" class="prose prose-sm max-w-none break-words" :class="{'typing-cursor': msg.isStreaming}" v-html="msg.content ? renderMarkdown(msg.content, msg.useDeepThink) : '&#8203;'"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer class="p-3 md:p-4 border-t bg-white shrink-0 pb-safe">
+                    <div class="flex flex-col gap-2">
+                        
+                        <div class="flex gap-2 md:gap-3 items-end">
+                            <div class="flex-1 relative bg-gray-50 border border-gray-200 rounded-xl focus-within:bg-white focus-within:ring-2 ring-blue-200 transition-all flex flex-col min-h-[48px]">
+                                
+                                <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 p-2 pb-0">
+                                    <div v-for="(file, idx) in attachedFiles" :key="idx" class="relative group bg-white border border-gray-200 rounded-lg p-1.5 flex items-center gap-2 max-w-[160px] shadow-sm animate-fade-in">
+                                        <img v-if="file.isImage" :src="file.data" class="w-8 h-8 object-cover rounded shrink-0">
+                                        <div v-else class="w-8 h-8 bg-slate-50 flex items-center justify-center rounded shrink-0" :class="getFileColorClass(file.name)">
+                                            <i class="fa-solid text-sm" :class="getFileIconClass(file.name)"></i>
+                                        </div>
+                                        <span class="text-[10px] text-gray-600 truncate flex-1" :title="file.name">{{ file.name }}</span>
+                                        <button @click="removeFile(idx)" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity transform scale-90 z-10 shadow-md">
+                                            <i class="fa-solid fa-times text-[10px]"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="relative w-full">
+                                    <textarea v-model="userInput" @keydown.ctrl.enter="sendRequest" @keydown.meta.enter="sendRequest" 
+                                              class="w-full bg-transparent p-3 pr-10 outline-none resize-none max-h-32 text-sm text-gray-700" rows="1"
+                                              placeholder="有问题尽管提 (Ctrl+Enter 发送)..." :disabled="isRequesting"></textarea>
+                                    
+                                    <div v-if="userInput" 
+                                         class="absolute top-3 right-3 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors z-10" 
+                                         @mousedown.prevent="userInput = ''" title="清空文本">
+                                        <i class="fa-solid fa-circle-xmark"></i>
+                                    </div>
+                                </div>
+                                
+                                <div class="px-2 pb-2 flex justify-between items-center">
+                                    <div class="flex gap-1 items-center">
+                                        <button @click="$refs.fileInput.click()" :disabled="isParsingFile" class="text-gray-400 hover:text-blue-500 hover:bg-gray-100 disabled:opacity-50 transition px-2 py-1.5 rounded-lg flex items-center gap-1" title="上传图片或文档">
+                                            <i class="fa-solid" :class="isParsingFile ? 'fa-spinner fa-spin text-blue-500' : 'fa-paperclip text-lg'"></i>
+                                        </button>
+                                        <input type="file" ref="fileInput" @change="handleFileUpload" multiple accept="image/*,.txt,.md,.csv,.json,.html,.js,.py,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.wps" class="hidden">
+                                    </div>
+                                    
+                                    <button @click="isDeepThink = !isDeepThink" 
+                                            :class="isDeepThink ? 'text-indigo-600 bg-indigo-50 border-indigo-200' : 'text-gray-400 hover:bg-gray-100 border-transparent'" 
+                                            class="border text-xs font-bold px-3 py-1.5 rounded-full transition flex items-center gap-1.5 select-none active:scale-95" title="开启将引导模型进行深度推理">
+                                        <i class="fa-solid fa-brain" :class="isDeepThink ? 'animate-pulse' : ''"></i>
+                                        深度思考
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col gap-1.5 shrink-0 justify-end h-full">
+                                <button @click="clearMessages" :disabled="messages.length === 0 || isRequesting"
+                                        class="bg-red-50 hover:bg-red-100 disabled:bg-gray-50 text-red-500 disabled:text-gray-300 border border-red-100 disabled:border-gray-100 px-3 md:px-4 py-1.5 rounded-lg shadow-sm text-xs font-bold transition flex items-center justify-center gap-1.5 w-full active:scale-[0.98]" title="清空对话">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                    <span class="hidden md:inline">清空</span>
+                                </button>
+
+                                <button @click="sendRequest" :disabled="isRequesting || (!userInput.trim() && attachedFiles.length === 0) || isParsingFile" 
+                                        class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-3 md:px-4 py-1.5 rounded-lg shadow-sm text-xs font-bold transition flex items-center justify-center gap-1.5 w-full active:scale-[0.98]">
+                                    <i v-if="isRequesting" class="fa-solid fa-spinner fa-spin"></i>
+                                    <i v-else class="fa-solid fa-paper-plane"></i>
+                                    <span class="hidden md:inline">发送</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 mt-1">
+                            <span @click="insertQuickText('请问你现在使用的是什么大模型？你是否支持多模态？是否支持深度思考？是否支持联网查询功能？')" class="cursor-pointer text-[11px] md:text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 px-3 py-1.5 rounded-full border border-blue-200 transition shadow-sm select-none inline-flex items-center gap-1 active:scale-95">
+                                <i class="fa-regular fa-lightbulb"></i> 请问你现在使用的是什么大模型？你是否支持多模态？是否支持深度思考？是否支持联网查询功能？
+                            </span>
+                        </div>
+                    </div>
+                </footer>
+            </section>
+        </div>
+
+        <div v-show="currentTab === 'manage'" class="flex-1 overflow-hidden relative bg-slate-50 flex flex-col h-full w-full">
+            <div class="px-4 md:px-6 py-3 md:py-4 bg-white border-b border-gray-100 flex flex-col sm:flex-row gap-3 md:gap-4 justify-between items-center shrink-0 z-10">
+                
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10"></i>
+                    <input v-model="searchQuery" autocomplete="nope"
+                           @focus="handleSearchFocus" 
+                           @blur="handleSearchBlur" 
+                           @input="handleSearchInput" 
+                           class="w-full pl-9 pr-14 h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:bg-white outline-none transition focus:ring-indigo-200 focus:border-indigo-400" 
+                           placeholder="搜索平台名称、备注...">
+                    
+                    <div v-if="searchQuery" class="absolute inset-y-0 right-7 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors z-10" @mousedown.prevent="clearSearch">
+                        <i class="fa-solid fa-circle-xmark"></i>
+                    </div>
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer z-10" @mousedown.prevent="toggleSearchDropdown">
+                        <i class="fa-solid fa-chevron-down text-gray-400 hover:text-gray-600 transition-transform duration-200" :class="{'rotate-180': showSearchDropdown}"></i>
+                    </div>
+                    
+                    <div v-show="showSearchDropdown && filteredSearchPlatforms.length > 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-56 overflow-y-auto" id="search-dropdown-list">
+                        <div v-for="item in filteredSearchPlatforms" :key="item.name" :id="'search-item-' + item.originalIndex" @mousedown.prevent="selectSearch(item.name)" class="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-indigo-50 transition-colors flex items-center" :class="{'bg-indigo-100 text-indigo-700 font-bold': searchQuery === item.name}">
+                            <span class="mr-1.5">{{ item.originalIndex }}.</span>
+                            <span class="truncate" :title="item.name">{{ item.name }} {{ item.useProxy ? '(反代)' : '' }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 md:gap-3 w-full sm:w-auto">
+                    <button @click="openDrawer(null)" class="flex-1 sm:flex-none justify-center px-4 md:px-5 h-10 text-white rounded-lg text-sm font-bold shadow-lg shadow-indigo-500/30 transition flex items-center gap-2 active:scale-95 bg-gradient-to-r from-indigo-500 to-indigo-600">
+                        <i class="fa-solid fa-plus"></i> <span>新建接口</span>
+                    </button>
+                    <button @click="handleExport" class="flex-1 sm:flex-none justify-center px-4 h-10 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-sm font-bold hover:bg-emerald-100 transition flex items-center gap-2 active:scale-95">
+                        <i class="fa-solid fa-download"></i> <span>备份接口</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                    <div v-for="item in filteredList" :key="item.id" 
+                         class="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative group cursor-pointer active:scale-[0.98]"
+                         @click="openDrawer(item)">
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                <i class="fa-solid fa-cube mr-1.5"></i> {{ item.platform }}
+                                <span v-if="item.useProxy" class="ml-1.5 inline-flex items-center px-1 py-0.5 rounded text-[10px] bg-purple-100 text-purple-600 border border-purple-200" title="开启了本地反向代理">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </span>
+                            </span>
+                            <button @click.stop="deleteItem(item.id)" class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-400 font-mono mb-2 bg-gray-50 p-2 rounded border border-gray-100 truncate">
+                            <i class="fa-solid fa-link shrink-0"></i> <span class="truncate">{{ item.url }}</span>
+                        </div>
+                        <div class="flex items-center gap-2 text-xs text-gray-400 font-mono mb-3 bg-gray-50 p-2 rounded border border-gray-100 truncate">
+                            <i class="fa-solid fa-key shrink-0"></i> <span>{{ maskKey(item.key) }}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 leading-relaxed bg-gray-50 rounded p-2 border border-gray-100 line-clamp-2 min-h-[44px]">
+                            {{ item.remark || '暂无备注说明' }}
+                        </div>
+                    </div>
+                    <div v-if="filteredList.length === 0" class="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
+                        <i class="fa-solid fa-server text-6xl mb-4 text-gray-300"></i>
+                        <p class="font-medium text-gray-500">没有找到匹配的接口配置</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <transition name="fade">
+            <div v-if="isDrawerOpen" @click="closeDrawer" class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-40 touch-none"></div>
+        </transition>
+
+        <transition name="slide">
+            <div v-if="isDrawerOpen" class="absolute top-0 right-0 bottom-0 w-full md:w-[450px] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-100">
+                <div class="px-4 md:px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                    <div><h2 class="text-lg font-bold text-gray-800">{{ form.id ? '编辑' : '新建' }}接口</h2></div>
+                    <button @click="closeDrawer" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition"><i class="fa-solid fa-times"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 bg-gray-50/50 pb-safe">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">平台名称 <span class="text-red-500">*</span></label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-gray-700">反代</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" v-model="form.useProxy" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="relative w-full">
+                            <input v-model="form.platform" @focus="handlePlatformFocus" @blur="handlePlatformBlur" @input="handlePlatformInput" type="text" placeholder="选择或输入平台名称，例如: OpenAI..." class="w-full border border-gray-300 rounded-lg p-3 pr-14 text-sm focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 outline-none transition bg-white text-gray-700">
+                            
+                            <div v-if="form.platform" class="absolute inset-y-0 right-7 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="clearPlatform">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                            </div>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer" @mousedown.prevent="togglePlatformDropdown">
+                                <i class="fa-solid fa-chevron-down text-gray-400 hover:text-gray-600 transition-transform duration-200" :class="{'rotate-180': showPlatformDropdown}"></i>
+                            </div>
+                            
+                            <div v-show="showPlatformDropdown && filteredPlatforms.length > 0" class="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-56 overflow-y-auto" id="platform-dropdown-list">
+                                <div v-for="item in filteredPlatforms" :key="item.name" :id="'platform-item-' + item.originalIndex" @mousedown.prevent="selectPlatform(item.name)" class="px-3 py-2 text-sm text-gray-700 cursor-pointer hover:bg-indigo-50 transition-colors flex items-center" :class="{'bg-indigo-100 text-indigo-700 font-bold': form.platform === item.name}">
+                                    <span class="mr-1.5">{{ item.originalIndex }}.</span>
+                                    <span class="truncate" :title="item.name">{{ item.name }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">Base URL <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <i class="fa-solid fa-link absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            <input v-model="form.url" class="w-full pl-9 border border-gray-300 rounded-lg p-3 text-sm font-mono text-gray-700 focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 outline-none transition" placeholder="例如: https://api.openai.com/v1">
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-1">请包含 /v1 且不要包含 /chat/completions 或 /models</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">API Key <span class="text-red-500">*</span></label>
+                        <div class="relative">
+                            <i class="fa-solid fa-key absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                            <input v-model="form.key" :type="showApiKey ? 'text' : 'password'" class="w-full pl-9 pr-10 border border-gray-300 rounded-lg p-3 text-sm font-mono text-gray-700 focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 outline-none transition" placeholder="sk-...">
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 cursor-pointer text-gray-400 hover:text-gray-600 transition-colors" @click="showApiKey = !showApiKey" title="显示/隐藏 KEY">
+                                <i class="fa-solid" :class="showApiKey ? 'fa-eye-slash' : 'fa-eye'"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">备注说明</label>
+                        <textarea v-model="form.remark" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-2 ring-indigo-500/20 focus:border-indigo-500 outline-none transition resize-none h-20" placeholder="填写关于该接口的用途、额度等信息..."></textarea>
+                    </div>
+
+                </div>
+                <div class="p-4 md:p-5 border-t border-gray-100 bg-white shrink-0 pb-safe">
+                    <button @click="saveItem" class="w-full py-3.5 rounded-xl text-white font-bold bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/30 transition transform active:scale-[0.98] flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-save"></i> <span>保存配置</span>
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <div v-show="currentTab === 'favorites'" class="flex-1 overflow-hidden relative bg-slate-50 flex flex-col h-full w-full">
+            <div class="px-4 md:px-6 py-3 md:py-4 bg-white border-b border-gray-100 flex flex-col md:flex-row gap-3 md:gap-4 justify-between items-center shrink-0 z-10">
+                <div class="flex gap-2 w-full md:w-auto flex-1 md:max-w-xl">
+                    <div class="relative shrink-0 w-[120px] sm:w-[150px]">
+                        <select v-model="favFilterApiId" :class="!favFilterApiId ? 'text-gray-400' : 'text-gray-700'" class="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:bg-white outline-none transition focus:ring-yellow-200 focus:border-yellow-400 pl-2 sm:pl-3 pr-8 cursor-pointer truncate appearance-none">
+                            <option value="" class="text-gray-700">全部平台</option>
+                            <option v-for="(api, index) in favAvailablePlatforms" :key="api.id" :value="api.id" class="text-gray-700">{{ index + 1 }}. {{ api.platform }} {{ api.useProxy ? '(反代)' : '' }}</option>
+                        </select>
+                        <div v-if="favFilterApiId" class="absolute inset-y-0 right-2 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="favFilterApiId = ''" title="清除筛选">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </div>
+                        <div v-else class="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-400">
+                            <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </div>
+                    </div>
+                    <div class="relative w-full">
+                        <i class="fa-solid fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input v-model="favSearchQuery" autocomplete="nope" class="w-full pl-10 pr-8 h-10 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700 focus:ring-2 focus:bg-white outline-none transition focus:ring-yellow-200 focus:border-yellow-400" placeholder="搜索模型名称、备注...">
+                        <div v-if="favSearchQuery" class="absolute inset-y-0 right-3 flex items-center cursor-pointer text-gray-300 hover:text-red-400 transition-colors" @mousedown.prevent="favSearchQuery = ''" title="清空搜索">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 md:gap-3 w-full sm:w-auto">
+                    <button @click="openFavDrawer(null)" class="flex-1 sm:flex-none justify-center px-4 md:px-5 h-10 text-slate-900 rounded-lg text-sm font-bold shadow-lg shadow-yellow-500/30 transition flex items-center gap-2 active:scale-95 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400">
+                        <i class="fa-solid fa-star"></i> <span>新建收藏</span>
+                    </button>
+                    <button @click="handleFavExport" class="flex-1 sm:flex-none justify-center px-4 h-10 bg-orange-50 text-orange-600 border border-orange-200 rounded-lg text-sm font-bold hover:bg-orange-100 transition flex items-center gap-2 active:scale-95">
+                        <i class="fa-solid fa-download"></i> <span>备份收藏夹</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-6 pb-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                    <div v-for="item in filteredFavList" :key="item.id" 
+                         class="bg-white border border-gray-100 rounded-xl p-4 md:p-5 shadow-sm hover:shadow-md transition-shadow relative group flex flex-col cursor-pointer active:scale-[0.98]"
+                         @click="openFavDrawer(item)">
+                        
+                        <div class="flex justify-between items-start mb-3">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-bold bg-yellow-50 text-yellow-700 border border-yellow-200">
+                                <i class="fa-solid fa-server mr-1.5"></i> {{ getApiPlatformName(item.apiId) }}
+                                <span v-if="getApiById(item.apiId)?.useProxy" class="ml-1.5 inline-flex items-center px-1 py-0.5 rounded text-[10px] bg-purple-100 text-purple-600 border border-purple-200" title="开启了本地反向代理">
+                                    <i class="fa-solid fa-bolt"></i>
+                                </span>
+                            </span>
+                            <div class="flex gap-1">
+                                <button @click.stop="deleteFavItem(item.id)" class="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-red-50 hover:text-red-500 transition" title="删除">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center gap-2 text-xs text-gray-500 mb-3 bg-gray-50 p-2 rounded border border-gray-100">
+                            <i class="fa-solid fa-cube text-gray-400 shrink-0"></i> 
+                            <span class="truncate font-bold">{{ item.modelName }}</span>
+                        </div>
+                        
+                        <div class="text-xs text-gray-500 leading-relaxed bg-gray-50 rounded p-2 border border-gray-100 line-clamp-3 min-h-[56px] flex-1 mb-3">
+                            {{ item.remark || '暂无备注说明' }}
+                        </div>
+
+                        <button @click.stop="jumpToModel(item)" class="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-md active:scale-95 flex justify-center items-center gap-2 z-10 relative">
+                            <i class="fa-solid fa-rocket"></i> 使用此模型
+                        </button>
+                    </div>
+                    
+                    <div v-if="filteredFavList.length === 0" class="col-span-full flex flex-col items-center justify-center py-20 opacity-40">
+                        <i class="fa-regular fa-star text-6xl mb-4 text-gray-300"></i>
+                        <p class="font-medium text-gray-500">没找到相关的模型配置</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <transition name="fade">
+            <div v-if="isFavDrawerOpen" @click="closeFavDrawer" class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-40 touch-none"></div>
+        </transition>
+
+        <transition name="slide">
+            <div v-if="isFavDrawerOpen" class="absolute top-0 right-0 bottom-0 w-full md:w-[450px] bg-white shadow-2xl z-50 flex flex-col border-l border-gray-100">
+                <div class="px-4 md:px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
+                    <div><h2 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-star text-yellow-500 mr-2"></i>{{ favForm.id ? '编辑' : '添加' }}模型收藏</h2></div>
+                    <button @click="closeFavDrawer" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition"><i class="fa-solid fa-times"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-4 md:p-5 space-y-5 bg-gray-50/50 pb-safe">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">所属接口平台 <span class="text-red-500">*</span></label>
+                        <select v-model="favForm.apiId" :class="!favForm.apiId ? 'text-gray-400' : 'text-gray-700'" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-yellow-500/20 focus:border-yellow-500 outline-none transition bg-white appearance-none">
+                            <option :value="null" disabled class="hidden"></option>
+                            <option v-for="(api, index) in sortedApiLibrary" :key="api.id" :value="api.id" class="text-gray-700">{{ index + 1 }}. {{ api.platform }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">Model (模型名称) <span class="text-red-500">*</span></label>
+                        <input v-model="favForm.modelName" class="w-full border border-gray-300 rounded-lg p-3 text-sm font-mono text-gray-700 focus:ring-2 ring-yellow-500/20 focus:border-yellow-500 outline-none transition" placeholder="例如: gpt-4o, deepseek-chat...">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 mb-2 uppercase">模型备注 (用途、特性等)</label>
+                        <textarea v-model="favForm.remark" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-gray-700 focus:ring-2 ring-yellow-500/20 focus:border-yellow-500 outline-none transition resize-none h-24" placeholder="例如：写代码主力、便宜速度快..."></textarea>
+                    </div>
+                </div>
+                <div class="p-4 md:p-5 border-t border-gray-100 bg-white shrink-0 pb-safe">
+                    <button @click="saveFavItem" class="w-full py-3.5 rounded-xl text-slate-900 font-bold bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-300 hover:to-yellow-400 shadow-lg shadow-yellow-500/30 transition transform active:scale-[0.98] flex justify-center items-center gap-2">
+                        <i class="fa-solid fa-save"></i> <span>保存收藏</span>
+                    </button>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Settings Popup -->
+        <transition name="fade">
+            <div v-if="showSettings" @click="showSettings = false" class="absolute inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] flex items-center justify-center">
+                <div @click.stop class="bg-white rounded-2xl shadow-2xl w-[90%] max-w-md m-4 max-h-[85vh] overflow-y-auto">
+                    <div class="flex justify-between items-center p-5 border-b border-gray-100">
+                        <h2 class="text-lg font-bold text-gray-800"><i class="fa-solid fa-gear mr-2"></i>设置</h2>
+                        <button @click="showSettings = false" class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-500 hover:bg-gray-200 transition"><i class="fa-solid fa-times"></i></button>
+                    </div>
+
+                    <div class="p-5 space-y-5">
+                        <!-- Status -->
+                        <div class="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">加密文件</span>
+                                <span class="font-mono text-xs">{{ hasEncFiles ? 'api.db.enc + model.db.enc ✅' : '不存在' }}</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-500">解密状态</span>
+                                <span :class="isUnlocked ? 'text-green-600' : 'text-yellow-600'">{{ isUnlocked ? '✅ 已解密' : '🔒 未解密' }}</span>
+                            </div>
+                            <div v-if="sessionPassword" class="flex justify-between items-center text-gray-500">
+                                <span>导出密码</span>
+                                <span class="text-green-600">✅ 已设置</span>
+                            </div>
+                            <div v-if="isUnlocked" class="border-t border-gray-200 pt-2 flex justify-between text-gray-500">
+                                <span>📡 平台: {{ apiLibrary.length }} 个</span>
+                                <span>⭐ 收藏: {{ favoriteModels.length }} 个</span>
+                            </div>
+                        </div>
+
+                        <!-- Case 1: .enc exists, not unlocked -->
+                        <div v-if="hasEncFiles && !isUnlocked" class="space-y-3">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">解密密码</label>
+                            <input v-model="settingsPassword" @keyup.enter="unlockDatabase" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="请输入密码">
+                            <p v-if="settingsError" class="text-red-500 text-xs text-center">{{ settingsError }}</p>
+                            <button @click="unlockDatabase" :disabled="isProcessing || !settingsPassword" class="w-full py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                <i v-if="isProcessing" class="fa-solid fa-spinner fa-spin"></i>
+                                <i v-else class="fa-solid fa-unlock"></i>
+                                <span>{{ isProcessing ? '解密中...' : '解锁' }}</span>
+                            </button>
+                        </div>
+
+                        <!-- Case 2: Unlocked -->
+                        <div v-if="isUnlocked" class="space-y-4">
+                            <!-- Change / Set Password -->
+                            <div class="border-t border-gray-200 pt-4 space-y-3">
+                                <label class="block text-xs font-bold text-gray-500 uppercase">{{ hasEncFiles ? '修改加密密码' : '设置导出密码' }}</label>
+                                <template v-if="hasEncFiles">
+                                    <input v-model="oldPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="当前密码">
+                                </template>
+                                <input v-model="newPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="新密码">
+                                <input v-model="confirmPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-indigo-500 outline-none transition" placeholder="确认新密码">
+                                <p v-if="settingsError" class="text-red-500 text-xs">{{ settingsError }}</p>
+                                <button @click="changePassword" :disabled="isProcessing || !newPw || !confirmPw || (hasEncFiles && !oldPw)" class="w-full py-3 rounded-xl text-white font-bold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                    <i v-if="isProcessing" class="fa-solid fa-spinner fa-spin"></i>
+                                    <i v-else class="fa-solid fa-rotate"></i>
+                                    <span>{{ isProcessing ? '处理中...' : (hasEncFiles ? '修改密码并下载 .enc' : '设定密码') }}</span>
+                                </button>
+                            </div>
+
+                            <!-- Remove Encryption (only when .enc exists) -->
+                            <div v-if="hasEncFiles" class="border-t border-gray-200 pt-4 space-y-3">
+                                <label class="block text-xs font-bold text-red-500 uppercase">取消加密（下载明文 .db）</label>
+                                <input v-model="oldPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 ring-red-500 outline-none transition" placeholder="输入密码确认">
+                                <button @click="removeEncryption" :disabled="isProcessing || !oldPw" class="w-full py-3 rounded-xl text-red-600 font-bold bg-red-50 border border-red-200 hover:bg-red-100 disabled:bg-gray-50 disabled:text-gray-300 disabled:border-gray-100 transition flex items-center justify-center gap-2 active:scale-[0.98]">
+                                    <i class="fa-solid fa-file-export"></i>
+                                    下载明文 .db
+                                </button>
+                            </div>
+
+                            <!-- Clear Password (plain .db mode) -->
+                            <div v-if="!hasEncFiles && sessionPassword" class="border-t border-gray-200 pt-4">
+                                <button @click="clearExportPassword" class="w-full py-3 rounded-xl text-orange-600 font-bold bg-orange-50 border border-orange-200 hover:bg-orange-100 transition active:scale-[0.98]">
+                                    <i class="fa-solid fa-ban mr-1"></i>清除导出密码
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Case 3: No .enc, no password set -->
+                        <div v-if="!hasEncFiles && !sessionPassword && !isUnlocked" class="space-y-3">
+                            <label class="block text-xs font-bold text-gray-500 uppercase">设置导出加密密码</label>
+                            <p class="text-xs text-gray-400">设定密码后，备份接口/收藏夹时将自动加密下载 .enc 文件。</p>
+                            <input v-model="newPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="密码">
+                            <input v-model="confirmPw" type="password" class="w-full border border-gray-300 rounded-lg p-3 text-sm text-center focus:ring-2 ring-blue-500 outline-none transition" placeholder="确认密码">
+                            <p v-if="settingsError" class="text-red-500 text-xs text-center">{{ settingsError }}</p>
+                            <button @click="setExportPassword" :disabled="!newPw || !confirmPw" class="w-full py-3 rounded-xl text-white font-bold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition flex items-center justify-center gap-2 shadow-lg active:scale-[0.98]">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>设定密码</span>
+                            </button>
+                        </div>
+
+                        <div class="text-[10px] text-gray-400 text-center leading-relaxed pt-2 border-t border-gray-100">
+                            💡 提交 GitHub 时仅提交 <code>.enc</code> 文件，<code>.db</code> 文件不要提交。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+    </main>
+</div>
+
+<script>
+    const { createApp, ref, reactive, nextTick, watch, computed, onMounted } = Vue;
+
+    createApp({
+        setup() {
+            let SQL;
+
+            const currentTab = ref('debug');
+            const apiLibrary = ref([]);
+            const favoriteModels = ref([]);
+            const showMobileConfig = ref(false);
+            const showApiKey = ref(false);
+
+            // 加密相关状态
+            const showSettings = ref(false);
+            const hasEncFiles = ref(false);
+            const isUnlocked = ref(false);
+            const isProcessing = ref(false);
+            const settingsPassword = ref('');
+            const settingsError = ref('');
+            const sessionPassword = ref('');
+            const oldPw = ref('');
+            const newPw = ref('');
+            const confirmPw = ref('');
+            const encApiDbBytes = ref(null);
+            const encModelDbBytes = ref(null);
+
+            // 获取特定 API 对象（用于收藏列表中判断是否反代等）
+            const getApiById = (id) => {
+                return apiLibrary.value.find(a => a.id === id);
+            };
+
+            // 自定义排序函数：英文优先，中文拼音其次
+            const sortPlatformsFn = (aStr, bStr) => {
+                if (!aStr) aStr = '';
+                if (!bStr) bStr = '';
+
+                const isEngA = /^[A-Za-z0-9]/.test(aStr);
+                const isEngB = /^[A-Za-z0-9]/.test(bStr);
+
+                if (isEngA && !isEngB) return -1;
+                if (!isEngA && isEngB) return 1;
+
+                return aStr.localeCompare(bStr, 'zh-CN');
+            };
+
+            const sortedApiLibrary = computed(() => {
+                return [...apiLibrary.value].sort((a, b) => sortPlatformsFn(a.platform, b.platform));
+            });
+
+            // 提取所有唯一且已存在的平台名称供联想使用
+            const uniquePlatforms = computed(() => {
+                const names = apiLibrary.value.map(a => a.platform).filter(Boolean);
+                return [...new Set(names)].sort(sortPlatformsFn);
+            });
+            
+            // 接口管理相关
+            const searchQuery = ref('');
+            const isDrawerOpen = ref(false);
+            const form = reactive({ id: null, platform: '', url: '', key: '', remark: '', useProxy: false });
+
+            // ======= 接口管理搜索框下拉相关逻辑 =======
+            const showSearchDropdown = ref(false);
+            const forceShowAllSearch = ref(false);
+            
+            const filteredSearchPlatforms = computed(() => {
+                // 修改：通过在 apiLibrary 中查找匹配的首个平台，携带 useProxy 状态供模板渲染
+                const mappedPlatforms = uniquePlatforms.value.map((p, i) => {
+                    const api = apiLibrary.value.find(a => a.platform === p);
+                    return { name: p, originalIndex: i + 1, useProxy: api ? !!api.useProxy : false };
+                });
+                
+                if (forceShowAllSearch.value || !searchQuery.value) return mappedPlatforms;
+                const searchTerm = searchQuery.value.toLowerCase();
+                return mappedPlatforms.filter(item => item.name.toLowerCase().includes(searchTerm));
+            });
+
+            const handleSearchInput = () => { forceShowAllSearch.value = false; showSearchDropdown.value = true; };
+            const handleSearchFocus = () => { forceShowAllSearch.value = true; showSearchDropdown.value = true; scrollToSelectedSearch(); };
+            const toggleSearchDropdown = () => { showSearchDropdown.value = !showSearchDropdown.value; if (showSearchDropdown.value) { forceShowAllSearch.value = true; scrollToSelectedSearch(); } };
+            const clearSearch = () => { searchQuery.value = ''; forceShowAllSearch.value = true; showSearchDropdown.value = true; };
+            
+            const scrollToSelectedSearch = () => {
+                if (!searchQuery.value) return;
+                nextTick(() => {
+                    const index = uniquePlatforms.value.indexOf(searchQuery.value);
+                    if (index !== -1) {
+                        const el = document.getElementById(`search-item-${index + 1}`);
+                        if (el) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                    }
+                });
+            };
+
+            const handleSearchBlur = () => setTimeout(() => showSearchDropdown.value = false, 200);
+            const selectSearch = (platformName) => { searchQuery.value = platformName; showSearchDropdown.value = false; };
+            // ===========================================
+
+            // ======= 平台名称自定义下拉相关逻辑 =======
+            const showPlatformDropdown = ref(false);
+            const forceShowAllPlatforms = ref(false);
+            
+            const filteredPlatforms = computed(() => {
+                const mappedPlatforms = uniquePlatforms.value.map((p, i) => ({ name: p, originalIndex: i + 1 }));
+                if (forceShowAllPlatforms.value || !form.platform) return mappedPlatforms;
+                const searchTerm = form.platform.toLowerCase();
+                return mappedPlatforms.filter(item => item.name.toLowerCase().includes(searchTerm));
+            });
+
+            const handlePlatformInput = () => { forceShowAllPlatforms.value = false; showPlatformDropdown.value = true; };
+            const handlePlatformFocus = () => { forceShowAllPlatforms.value = true; showPlatformDropdown.value = true; scrollToSelectedPlatform(); };
+            const togglePlatformDropdown = () => { showPlatformDropdown.value = !showPlatformDropdown.value; if (showPlatformDropdown.value) { forceShowAllPlatforms.value = true; scrollToSelectedPlatform(); } };
+            const clearPlatform = () => { form.platform = ''; forceShowAllPlatforms.value = true; showPlatformDropdown.value = true; };
+            
+            const scrollToSelectedPlatform = () => {
+                if (!form.platform) return;
+                nextTick(() => {
+                    const index = uniquePlatforms.value.indexOf(form.platform);
+                    if (index !== -1) {
+                        const el = document.getElementById(`platform-item-${index + 1}`);
+                        if (el) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                    }
+                });
+            };
+
+            const handlePlatformBlur = () => setTimeout(() => showPlatformDropdown.value = false, 200);
+            const selectPlatform = (platformName) => { form.platform = platformName; showPlatformDropdown.value = false; };
+            // ===========================================
+
+            const filteredList = computed(() => {
+                let list = apiLibrary.value;
+                const q = searchQuery.value.toLowerCase().trim();
+                if (q) {
+                    list = list.filter(i => (i.platform && i.platform.toLowerCase().includes(q)) || (i.remark && i.remark.toLowerCase().includes(q)));
+                }
+                return [...list].sort((a, b) => sortPlatformsFn(a.platform, b.platform));
+            });
+
+            const switchTab = (tab) => { currentTab.value = tab; showMobileConfig.value = false; };
+            const maskKey = (key) => key && key.length > 8 ? key.substring(0, 4) + '......' + key.substring(key.length - 4) : '';
+
+            // ======= Web Crypto 加密工具函数 =======
+            async function deriveKey(password, salt, usage) {
+                const enc = new TextEncoder();
+                const pwKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+                return crypto.subtle.deriveKey(
+                    { name: 'PBKDF2', salt, iterations: 600000, hash: 'SHA-256' },
+                    pwKey,
+                    { name: 'AES-GCM', length: 256 },
+                    false,
+                    [usage]
+                );
+            }
+
+            async function decryptBytes(data, password) {
+                const salt = data.slice(0, 16);
+                const nonce = data.slice(16, 28);
+                const ciphertext = data.slice(28);
+                const key = await deriveKey(password, salt, 'decrypt');
+                return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: nonce }, key, ciphertext));
+            }
+
+            async function encryptBytes(data, password) {
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const nonce = crypto.getRandomValues(new Uint8Array(12));
+                const key = await deriveKey(password, salt, 'encrypt');
+                const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, key, data);
+                const result = new Uint8Array(salt.length + nonce.length + encrypted.byteLength);
+                result.set(salt, 0);
+                result.set(nonce, 16);
+                result.set(new Uint8Array(encrypted), 28);
+                return result;
+            }
+
+            function downloadBlob(data, filename) {
+                const blob = new Blob([data], { type: 'application/octet-stream' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }
+            // =========================================
+
+            const openDrawer = (item) => {
+                showApiKey.value = false; // 每次打开重置密码可见性
+                if (item) Object.assign(form, { ...item, useProxy: !!item.useProxy });
+                else Object.assign(form, { id: null, platform: '', url: '', key: '', remark: '', useProxy: false });
+                isDrawerOpen.value = true;
+            };
+            const closeDrawer = () => isDrawerOpen.value = false;
+
+            const saveItem = () => {
+                if (!form.platform || !form.url || !form.key) return alert('平台名称、URL、Key 为必填项！');
+                const cleanUrl = form.url.replace(/\/+$/, "");
+                const saveData = { ...form, url: cleanUrl };
+                if (form.id) {
+                    const idx = apiLibrary.value.findIndex(i => i.id === form.id);
+                    if (idx !== -1) apiLibrary.value[idx] = { ...apiLibrary.value[idx], ...saveData };
+                    if (selectedApiId.value === form.id) { 
+                        apiConfig.url = saveData.url; 
+                        apiConfig.key = saveData.key;
+                        apiConfig.useProxy = saveData.useProxy;
+                    }
+                } else {
+                    apiLibrary.value.push({ ...saveData, id: Date.now() });
+                }
+                closeDrawer();
+            };
+
+            const deleteItem = (id) => {
+                if(!confirm('确定要删除此接口配置吗？')) return;
+                apiLibrary.value = apiLibrary.value.filter(i => i.id !== id);
+                favoriteModels.value = favoriteModels.value.filter(f => f.apiId !== id);
+                if (selectedApiId.value === id) selectedApiId.value = null;
+                if (isDrawerOpen.value && form.id === id) closeDrawer();
+            };
+
+            const handleExport = async () => {
+                if (!sessionPassword.value) {
+                    alert('请先在设置中设定导出密码');
+                    showSettings.value = true;
+                    return;
+                }
+                const db = new SQL.Database();
+                db.run(`CREATE TABLE api_configs (
+                    id INTEGER PRIMARY KEY, platform TEXT NOT NULL, url TEXT NOT NULL,
+                    key TEXT NOT NULL, remark TEXT DEFAULT '', useProxy INTEGER DEFAULT 0
+                )`);
+                const stmt = db.prepare("INSERT INTO api_configs VALUES (?,?,?,?,?,?)");
+                apiLibrary.value.forEach(item => {
+                    stmt.run([item.id, item.platform, item.url, item.key, item.remark, item.useProxy ? 1 : 0]);
+                });
+                stmt.free();
+                const data = db.export();
+                db.close();
+                const encrypted = await encryptBytes(data, sessionPassword.value);
+                downloadBlob(encrypted, 'api.db.enc');
+            };
+
+            // 模型收藏功能
+            const favSearchQuery = ref('');
+            const favFilterApiId = ref(''); 
+            const isFavDrawerOpen = ref(false);
+            const favForm = reactive({ id: null, apiId: null, modelName: '', remark: '' });
+
+            // 仅包含有收藏模型的平台供筛选下拉框使用
+            const favAvailablePlatforms = computed(() => {
+                const uniqueApiIds = [...new Set(favoriteModels.value.map(f => f.apiId))];
+                return apiLibrary.value
+                    .filter(api => uniqueApiIds.includes(api.id))
+                    .sort((a, b) => sortPlatformsFn(a.platform, b.platform));
+            });
+
+            const getApiPlatformName = (apiId) => {
+                const api = getApiById(apiId);
+                return api ? api.platform : '已失效的接口';
+            };
+
+            const filteredFavList = computed(() => {
+                let list = favoriteModels.value;
+                if (favFilterApiId.value !== '') {
+                    list = list.filter(i => i.apiId === favFilterApiId.value);
+                }
+                const q = favSearchQuery.value.toLowerCase().trim();
+                if (q) {
+                    list = list.filter(i => (i.modelName && i.modelName.toLowerCase().includes(q)) || (i.remark && i.remark.toLowerCase().includes(q)));
+                }
+                return [...list].sort((a, b) => {
+                    const platformA = getApiPlatformName(a.apiId);
+                    const platformB = getApiPlatformName(b.apiId);
+                    const cmp = sortPlatformsFn(platformA, platformB);
+                    if (cmp !== 0) return cmp;
+                    return b.id - a.id; 
+                });
+            });
+
+            const isCurrentModelFavorited = computed(() => {
+                if (!selectedApiId.value || !apiConfig.model) return false;
+                return favoriteModels.value.some(f => f.apiId === selectedApiId.value && f.modelName === apiConfig.model);
+            });
+
+            const openFavDrawer = (item) => {
+                if (item) Object.assign(favForm, item);
+                else Object.assign(favForm, { id: null, apiId: null, modelName: '', remark: '' });
+                isFavDrawerOpen.value = true;
+            };
+            
+            const openFavDrawerFromDebug = () => {
+                if (!selectedApiId.value || !apiConfig.model) return;
+                const existing = favoriteModels.value.find(f => f.apiId === selectedApiId.value && f.modelName === apiConfig.model);
+                if (existing) {
+                    Object.assign(favForm, existing);
+                } else {
+                    Object.assign(favForm, { id: null, apiId: selectedApiId.value, modelName: apiConfig.model, remark: '' });
+                }
+                isFavDrawerOpen.value = true;
+            };
+
+            const closeFavDrawer = () => isFavDrawerOpen.value = false;
+
+            const saveFavItem = () => {
+                if (!favForm.apiId || !favForm.modelName) return alert('所属平台和模型名称为必填项！');
+                if (favForm.id) {
+                    const idx = favoriteModels.value.findIndex(i => i.id === favForm.id);
+                    if (idx !== -1) favoriteModels.value[idx] = { ...favForm };
+                } else {
+                    const exists = favoriteModels.value.some(f => f.apiId === favForm.apiId && f.modelName === favForm.modelName);
+                    if(exists) return alert('该模型已经被收藏过啦！');
+                    favoriteModels.value.push({ ...favForm, id: Date.now() });
+                }
+                closeFavDrawer();
+            };
+
+            const deleteFavItem = (id) => {
+                if(!confirm('确定取消收藏此模型吗？')) return;
+                favoriteModels.value = favoriteModels.value.filter(i => i.id !== id);
+                if (isFavDrawerOpen.value && favForm.id === id) closeFavDrawer();
+            };
+
+            const handleFavExport = async () => {
+                if (!sessionPassword.value) {
+                    alert('请先在设置中设定导出密码');
+                    showSettings.value = true;
+                    return;
+                }
+                const db = new SQL.Database();
+                db.run(`CREATE TABLE favorite_models (
+                    id INTEGER PRIMARY KEY, apiId INTEGER NOT NULL,
+                    platform TEXT DEFAULT '', url TEXT DEFAULT '', key TEXT DEFAULT '',
+                    modelName TEXT NOT NULL, remark TEXT DEFAULT ''
+                )`);
+                const stmt = db.prepare("INSERT INTO favorite_models VALUES (?,?,?,?,?,?,?)");
+                favoriteModels.value.forEach(item => {
+                    const api = getApiById(item.apiId);
+                    const platform = api?.useProxy ? `${api.platform}（反代）` : (api?.platform || '');
+                    const url = api?.useProxy ? `http://localhost:8317/proxy/${api.url}` : (api?.url || '');
+                    stmt.run([item.id, item.apiId, platform, url, api?.key || '', item.modelName, item.remark]);
+                });
+                stmt.free();
+                const data = db.export();
+                db.close();
+                const encrypted = await encryptBytes(data, sessionPassword.value);
+                downloadBlob(encrypted, 'model.db.enc');
+            };
+
+            // ======= 密码 CRUD 函数 =======
+            const unlockDatabase = async () => {
+                if (!settingsPassword.value) return;
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    const apiPlain = await decryptBytes(encApiDbBytes.value, settingsPassword.value);
+                    const modelPlain = await decryptBytes(encModelDbBytes.value, settingsPassword.value);
+                    const apiDb = new SQL.Database(apiPlain);
+                    const modelDb = new SQL.Database(modelPlain);
+                    const r1 = apiDb.exec("SELECT id, platform, url, key, remark, useProxy FROM api_configs");
+                    if (r1.length > 0) {
+                        apiLibrary.value = r1[0].values.map(r => ({
+                            id: r[0], platform: r[1], url: r[2], key: r[3],
+                            remark: r[4] || '', useProxy: !!r[5]
+                        }));
+                    }
+                    const r2 = modelDb.exec("SELECT id, apiId, modelName, remark FROM favorite_models");
+                    if (r2.length > 0) {
+                        favoriteModels.value = r2[0].values.map(r => ({
+                            id: r[0], apiId: r[1], modelName: r[2], remark: r[3] || ''
+                        }));
+                    }
+                    apiDb.close();
+                    modelDb.close();
+                    sessionPassword.value = settingsPassword.value;
+                    isUnlocked.value = true;
+                    settingsPassword.value = '';
+                    showSettings.value = false;
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '密码错误，请重新输入';
+                    } else {
+                        settingsError.value = '解密失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const changePassword = async () => {
+                if (hasEncFiles.value && !oldPw.value) { settingsError.value = '请输入当前密码'; return; }
+                if (!newPw.value || !confirmPw.value) { settingsError.value = '请填写新密码'; return; }
+                if (newPw.value !== confirmPw.value) { settingsError.value = '两次输入的密码不一致'; return; }
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    if (hasEncFiles.value) {
+                        const apiPlain = await decryptBytes(encApiDbBytes.value, oldPw.value);
+                        const modelPlain = await decryptBytes(encModelDbBytes.value, oldPw.value);
+                        const apiEnc = await encryptBytes(apiPlain, newPw.value);
+                        const modelEnc = await encryptBytes(modelPlain, newPw.value);
+                        downloadBlob(apiEnc, 'api.db.enc');
+                        downloadBlob(modelEnc, 'model.db.enc');
+                    }
+                    sessionPassword.value = newPw.value;
+                    if (hasEncFiles.value && !isUnlocked.value) isUnlocked.value = true;
+                    oldPw.value = '';
+                    newPw.value = '';
+                    confirmPw.value = '';
+                    settingsError.value = '';
+                    alert(hasEncFiles.value ? '密码已修改，已下载新的加密文件，请替换服务器上的 .enc 文件' : '导出密码已设定');
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '当前密码错误';
+                    } else {
+                        settingsError.value = '操作失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const removeEncryption = async () => {
+                if (!oldPw.value) { settingsError.value = '请输入密码'; return; }
+                isProcessing.value = true;
+                settingsError.value = '';
+                try {
+                    const apiPlain = await decryptBytes(encApiDbBytes.value, oldPw.value);
+                    const modelPlain = await decryptBytes(encModelDbBytes.value, oldPw.value);
+                    downloadBlob(apiPlain, 'api.db');
+                    downloadBlob(modelPlain, 'model.db');
+                    oldPw.value = '';
+                    settingsError.value = '';
+                    alert('已下载明文 .db 文件');
+                } catch (e) {
+                    if (e.name === 'OperationError') {
+                        settingsError.value = '密码错误';
+                    } else {
+                        settingsError.value = '操作失败: ' + e.message;
+                        console.error(e);
+                    }
+                } finally {
+                    isProcessing.value = false;
+                }
+            };
+
+            const setExportPassword = () => {
+                if (!newPw.value || !confirmPw.value) { settingsError.value = '请填写密码'; return; }
+                if (newPw.value !== confirmPw.value) { settingsError.value = '两次输入的密码不一致'; return; }
+                sessionPassword.value = newPw.value;
+                newPw.value = '';
+                confirmPw.value = '';
+                settingsError.value = '';
+                showSettings.value = false;
+            };
+
+            const clearExportPassword = () => {
+                sessionPassword.value = '';
+                newPw.value = '';
+                confirmPw.value = '';
+                settingsError.value = '';
+            };
+            // =================================
+
+            let isJumpingToModel = false;
+            const jumpToModel = (favItem) => {
+                const api = apiLibrary.value.find(a => a.id === favItem.apiId);
+                if (!api) return alert('该模型对应的接口平台已不存在，请先在接口管理中配置！');
+                
+                isJumpingToModel = true;
+                selectedApiId.value = favItem.apiId;
+                apiConfig.url = api.url;
+                apiConfig.key = api.key;
+                apiConfig.useProxy = !!api.useProxy;
+                apiConfig.model = favItem.modelName;
+                
+                fetchModels();
+                
+                switchTab('debug');
+                if(window.innerWidth < 768) showMobileConfig.value = false;
+                
+                setTimeout(() => { isJumpingToModel = false; }, 200);
+            };
+
+            // 调试功能相关
+            const selectedApiId = ref(null);
+            const apiConfig = reactive({ url: '', key: '', model: '', systemPrompt: '', temperature: 1.0, useProxy: false });
+            
+            const messages = ref([]);
+            const userInput = ref('');
+            const isRequesting = ref(false);
+            
+            const fileInput = ref(null);
+            const attachedFiles = ref([]);
+            const isParsingFile = ref(false); 
+            
+            const isDeepThink = ref(false);
+
+            const availableModels = ref([]);
+            const isFetchingModels = ref(false);
+            const fetchModelError = ref('');
+            const showModelDropdown = ref(false);
+            const forceShowAllModels = ref(false);
+            const isTestingModel = ref(false);
+
+            watch(selectedApiId, (newId) => {
+                if (isJumpingToModel) return;
+                
+                const api = getApiById(newId);
+                if (api) {
+                    apiConfig.url = api.url; 
+                    apiConfig.key = api.key; 
+                    apiConfig.useProxy = !!api.useProxy;
+                    apiConfig.model = ''; 
+                    fetchModels();
+                } else {
+                    apiConfig.url = ''; apiConfig.key = ''; apiConfig.model = ''; apiConfig.useProxy = false; availableModels.value = [];
+                }
+            });
+
+            const filteredModels = computed(() => {
+                const mappedModels = availableModels.value.map((m, i) => ({ name: m, originalIndex: i + 1 }));
+                if (forceShowAllModels.value || !apiConfig.model) return mappedModels;
+                const searchTerm = apiConfig.model.toLowerCase();
+                return mappedModels.filter(item => item.name.toLowerCase().includes(searchTerm));
+            });
+
+            const getFileIconClass = (filename) => {
+                const ext = filename.split('.').pop().toLowerCase();
+                if (['pdf'].includes(ext)) return 'fa-file-pdf';
+                if (['doc', 'docx', 'wps'].includes(ext)) return 'fa-file-word';
+                if (['xls', 'xlsx', 'csv'].includes(ext)) return 'fa-file-excel';
+                if (['ppt', 'pptx'].includes(ext)) return 'fa-file-powerpoint';
+                if (['zip', 'rar', '7z', 'tar'].includes(ext)) return 'fa-file-zipper';
+                return 'fa-file-lines'; 
+            };
+            
+            const getFileColorClass = (filename) => {
+                const ext = filename.split('.').pop().toLowerCase();
+                if (['pdf'].includes(ext)) return 'text-red-500';
+                if (['doc', 'docx', 'wps'].includes(ext)) return 'text-blue-600';
+                if (['xls', 'xlsx', 'csv'].includes(ext)) return 'text-green-600';
+                if (['ppt', 'pptx'].includes(ext)) return 'text-orange-500';
+                return 'text-blue-400';
+            };
+
+            const handleFileUpload = async (e) => {
+                const files = Array.from(e.target.files);
+                if (files.length === 0) return;
+                
+                isParsingFile.value = true;
+                
+                try {
+                    for (const file of files) {
+                        const limit = file.type.startsWith('image/') ? 10 : 20; 
+                        if (file.size > limit * 1024 * 1024) {
+                            alert(`文件 [${file.name}] 超过 ${limit}MB 限制，请重新选择`);
+                            continue;
+                        }
+                        
+                        const ext = file.name.split('.').pop().toLowerCase();
+                        const isImage = file.type.startsWith('image/');
+                        const isSimpleText = file.type.startsWith('text/') || ['txt', 'md', 'csv', 'json', 'html', 'js', 'py', 'css', 'xml', 'log'].includes(ext);
+                        const isPdf = ext === 'pdf';
+                        const isDocx = ext === 'docx';
+                        const isExcel = ['xls', 'xlsx'].includes(ext);
+                        
+                        if (isImage) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => attachedFiles.value.push({ name: file.name, type: file.type, isImage: true, isText: false, data: event.target.result });
+                            reader.readAsDataURL(file);
+                        } else if (isSimpleText) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => attachedFiles.value.push({ name: file.name, type: file.type, isImage: false, isText: true, data: event.target.result });
+                            reader.readAsText(file);
+                        } else if (isPdf || isDocx || isExcel) {
+                            const arrayBuffer = await file.arrayBuffer();
+                            let extractedText = "";
+
+                            try {
+                                if (isPdf) {
+                                    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                                    const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                                    for (let i = 1; i <= pdf.numPages; i++) {
+                                        const page = await pdf.getPage(i);
+                                        const content = await page.getTextContent();
+                                        extractedText += content.items.map(item => item.str).join(' ') + "\n";
+                                    }
+                                } else if (isDocx) {
+                                    const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+                                    extractedText = result.value;
+                                } else if (isExcel) {
+                                    const workbook = XLSX.read(arrayBuffer, {type: 'array'});
+                                    workbook.SheetNames.forEach(sheetName => {
+                                        const sheet = workbook.Sheets[sheetName];
+                                        extractedText += `\n--- 表格: ${sheetName} ---\n`;
+                                        extractedText += XLSX.utils.sheet_to_csv(sheet);
+                                    });
+                                }
+
+                                if (extractedText.trim()) {
+                                     attachedFiles.value.push({
+                                        name: file.name,
+                                        type: file.type,
+                                        isImage: false,
+                                        isText: true, 
+                                        data: extractedText
+                                    });
+                                } else {
+                                    alert(`文件 [${file.name}] 未能提取出有效文字内容。`);
+                                }
+                            } catch (err) {
+                                console.error("解析文档失败:", err);
+                                alert(`解析文档 [${file.name}] 失败: 文件可能已损坏或受到保护。`);
+                            }
+
+                        } else {
+                             alert(`前端暂无法直接解析 [.${ext}] 格式，请用办公软件将其另存为 PDF 或 DOCX 格式后再上传。`);
+                        }
+                    }
+                } finally {
+                    isParsingFile.value = false;
+                    e.target.value = ''; 
+                }
+            };
+
+            const removeFile = (index) => attachedFiles.value.splice(index, 1);
+            const clearApiSelection = () => selectedApiId.value = null;
+            const handleModelInput = () => { forceShowAllModels.value = false; showModelDropdown.value = true; };
+            const handleModelFocus = () => { forceShowAllModels.value = true; showModelDropdown.value = true; scrollToSelectedModel(); };
+            const toggleModelDropdown = () => { showModelDropdown.value = !showModelDropdown.value; if (showModelDropdown.value) { forceShowAllModels.value = true; scrollToSelectedModel(); } };
+            const clearModel = () => { apiConfig.model = ''; forceShowAllModels.value = true; showModelDropdown.value = true; };
+
+            const scrollToSelectedModel = () => {
+                if (!apiConfig.model) return;
+                nextTick(() => {
+                    const index = availableModels.value.indexOf(apiConfig.model);
+                    if (index !== -1) {
+                        const el = document.getElementById(`model-item-${index + 1}`);
+                        if (el) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                    }
+                });
+            };
+
+            const renderMarkdown = (text, useDeepThink = false) => {
+                if (!text) return '';
+                let processed = text;
+                
+                if (useDeepThink) {
+                    processed = processed.replace(/<think>([\s\S]*?)<\/think>/gi, (match, p1) => {
+                        return `<details class="mb-3 group" open><summary class="cursor-pointer text-gray-500 font-bold select-none flex items-center gap-2 outline-none"><i class="fa-solid fa-brain"></i><span>思考过程</span><i class="fa-solid fa-chevron-right text-xs transition-transform group-open:rotate-90"></i></summary><div class="p-3 bg-gray-50 border-l-4 border-indigo-300 text-gray-500 text-sm mt-2 rounded-r-lg whitespace-pre-wrap font-mono leading-relaxed">${p1}</div></details>`;
+                    });
+                    processed = processed.replace(/<think>([\s\S]*)$/gi, (match, p1) => {
+                        return `<details class="mb-3 group" open><summary class="cursor-pointer text-gray-500 font-bold select-none flex items-center gap-2 outline-none animate-pulse"><i class="fa-solid fa-brain text-indigo-500"></i><span>深度思考中...</span></summary><div class="p-3 bg-gray-50 border-l-4 border-indigo-300 text-gray-500 text-sm mt-2 rounded-r-lg whitespace-pre-wrap font-mono leading-relaxed">${p1}</div></details>`;
+                    });
+                } else {
+                    processed = processed.replace(/<think>[\s\S]*?<\/think>\n*/gi, '');
+                    processed = processed.replace(/<think>[\s\S]*$/gi, '');
+                }
+                
+                return marked.parse(processed);
+            };
+
+            const clearMessages = () => messages.value = [];
+            const scrollToBottom = () => {
+                nextTick(() => {
+                    const c = document.getElementById('chat-container');
+                    if(c) c.scrollTop = c.scrollHeight;
+                });
+            };
+            
+            const insertQuickText = (text) => userInput.value = text;
+            const handleModelBlur = () => setTimeout(() => showModelDropdown.value = false, 200);
+            const selectModel = (modelName) => { apiConfig.model = modelName; showModelDropdown.value = false; };
+
+            const fetchModels = async () => {
+                if (!apiConfig.url || !apiConfig.key) return;
+                isFetchingModels.value = true; fetchModelError.value = '';
+                
+                try {
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/models` : `${apiConfig.url}/models`;
+                    const headers = { 'Authorization': `Bearer ${apiConfig.key}` };
+
+                    const response = await fetch(reqUrl, { method: 'GET', headers });
+                    if (!response.ok) throw new Error(`获取失败 (HTTP ${response.status})`);
+                    const data = await response.json();
+                    if (data && data.data && Array.isArray(data.data)) availableModels.value = data.data.map(m => m.id).sort();
+                    else throw new Error('接口返回格式不符合标准');
+                } catch (e) {
+                    fetchModelError.value = e.message; availableModels.value = [];
+                } finally { isFetchingModels.value = false; }
+            };
+            
+            const testModel = async () => {
+                if (!apiConfig.url || !apiConfig.key || !apiConfig.model) return;
+                isTestingModel.value = true;
+                
+                try {
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/chat/completions` : `${apiConfig.url}/chat/completions`;
+                    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.key}` };
+
+                    const response = await fetch(reqUrl, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({ model: apiConfig.model, messages: [{ role: 'user', content: 'hello' }], max_tokens: 5, stream: false }) 
+                    });
+                    if (response.ok) alert(`✅ 测试成功！\n模型 [${apiConfig.model}] 通信状态正常。`);
+                    else {
+                        let errMsg = await response.text();
+                        try { errMsg = JSON.parse(errMsg).error?.message || errMsg; } catch(e) {}
+                        alert(`❌ 测试失败！\n状态码: ${response.status}\n报错信息: ${errMsg}`);
+                    }
+                } catch (e) { alert(`❌ 测试异常！\n${e.message}`); } 
+                finally { isTestingModel.value = false; }
+            };
+
+            const sendRequest = async () => {
+                const text = userInput.value.trim();
+                if (!text && attachedFiles.value.length === 0) return;
+                if (isRequesting.value) return;
+
+                if (!selectedApiId.value || !apiConfig.model) {
+                    alert('请先配置接口并选择大模型！');
+                    if(window.innerWidth < 768) showMobileConfig.value = true;
+                    return;
+                }
+
+                if (window.innerWidth < 768) showMobileConfig.value = false;
+
+                messages.value.push({ 
+                    role: 'user', 
+                    content: text, 
+                    files: [...attachedFiles.value], 
+                    isStreaming: false,
+                    useDeepThink: isDeepThink.value 
+                });
+                
+                userInput.value = '';
+                attachedFiles.value = []; 
+                scrollToBottom();
+
+                messages.value.push({ 
+                    role: 'assistant', 
+                    content: '', 
+                    reasoning: '', 
+                    isStreaming: true,
+                    useDeepThink: isDeepThink.value 
+                });
+                const activeMessage = messages.value[messages.value.length - 1];
+                isRequesting.value = true;
+                scrollToBottom();
+
+                const payloadMessages = [];
+                if (apiConfig.systemPrompt) {
+                    payloadMessages.push({ role: 'system', content: apiConfig.systemPrompt });
+                }
+                
+                messages.value.slice(0, -1).forEach(m => {
+                    if (m.role === 'user') {
+                        let baseContent = m.content;
+                        let textFilesStr = '';
+                        let hasMultiModal = false;
+
+                        if (m.files && m.files.length > 0) {
+                            const textFiles = m.files.filter(f => f.isText);
+                            if (textFiles.length > 0) {
+                                textFilesStr = textFiles.map(f => `\n\n【文件内容：${f.name}】\n${f.data}`).join('');
+                            }
+                            hasMultiModal = m.files.some(f => !f.isText);
+                        }
+
+                        let finalContent = baseContent + textFilesStr;
+                        
+                        if (m.useDeepThink && m === messages.value[messages.value.length - 2]) {
+                            finalContent += '\n\n【系统指令】：请进行深度逻辑思考，并输出详细的推导过程。';
+                        }
+
+                        if (hasMultiModal) {
+                            const contentArr = [{ type: 'text', text: finalContent || '请查看附件' }];
+                            m.files.filter(f => !f.isText).forEach(f => {
+                                contentArr.push({ type: 'image_url', image_url: { url: f.data } });
+                            });
+                            payloadMessages.push({ role: m.role, content: contentArr });
+                        } else {
+                            payloadMessages.push({ role: m.role, content: finalContent });
+                        }
+                    } else {
+                        payloadMessages.push({ role: m.role, content: m.content });
+                    }
+                });
+
+                try {
+                    const reqUrl = apiConfig.useProxy ? `http://localhost:8317/proxy/${apiConfig.url}/chat/completions` : `${apiConfig.url}/chat/completions`;
+                    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiConfig.key}` };
+
+                    const response = await fetch(reqUrl, {
+                        method: 'POST',
+                        headers,
+                        body: JSON.stringify({
+                            model: apiConfig.model,
+                            messages: payloadMessages,
+                            ...(apiConfig.temperature !== 1.0 && { temperature: apiConfig.temperature }),
+                            stream: true
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        activeMessage.content = `> **HTTP 请求失败**\n> 状态码: ${response.status} ${response.statusText}\n> 详情: ${errorText}`;
+                        activeMessage.isStreaming = false;
+                        isRequesting.value = false;
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let extractedReasoning = '';
+                    let extractedContent = '';
+                    let hasSSEData = false;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (!trimmed.startsWith('data:')) continue;
+                            const data = trimmed.slice(5).trim();
+                            if (!data || data === '[DONE]') continue;
+
+                            try {
+                                const chunk = JSON.parse(data);
+                                const choice = chunk.choices?.[0] || {};
+                                const payload = choice.delta || choice.message || {};
+                                hasSSEData = true;
+
+                                if (payload.reasoning_content) {
+                                    extractedReasoning += payload.reasoning_content;
+                                    activeMessage.reasoning = extractedReasoning;
+                                }
+                                if (payload.content) {
+                                    extractedContent += payload.content;
+                                    activeMessage.content = extractedContent;
+                                }
+                                scrollToBottom();
+                            } catch (err) {}
+                        }
+                    }
+
+                    if (!hasSSEData) {
+                        try {
+                            const json = JSON.parse(buffer);
+                            const choice = json.choices?.[0] || {};
+                            const payload = choice.delta || choice.message || {};
+                            if (payload.reasoning_content || payload.content) {
+                                activeMessage.reasoning = payload.reasoning_content || '';
+                                activeMessage.content = payload.content || '';
+                                hasSSEData = true;
+                            }
+                        } catch (err) {}
+                    }
+
+                    if (!hasSSEData) {
+                        activeMessage.content = "_(模型未返回任何有效文本)_";
+                    }
+                    
+                } catch (e) {
+                    activeMessage.content += `\n\n> **网络或执行错误**\n> ${e.message}`;
+                } finally {
+                    activeMessage.isStreaming = false;
+                    isRequesting.value = false;
+                    scrollToBottom();
+                }
+            };
+
+            onMounted(async () => {
+                try {
+                    SQL = await initSqlJs({
+                        locateFile: file => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${file}`
+                    });
+
+                    const [apiEncResp, modelEncResp] = await Promise.all([
+                        fetch('api.db.enc').catch(() => null),
+                        fetch('model.db.enc').catch(() => null)
+                    ]);
+
+                    if (apiEncResp?.ok && modelEncResp?.ok) {
+                        encApiDbBytes.value = new Uint8Array(await apiEncResp.arrayBuffer());
+                        encModelDbBytes.value = new Uint8Array(await modelEncResp.arrayBuffer());
+                        hasEncFiles.value = true;
+                    } else {
+                        const [apiRes, modelRes] = await Promise.all([
+                            fetch('api.db').catch(() => null),
+                            fetch('model.db').catch(() => null)
+                        ]);
+                        if (apiRes?.ok && modelRes?.ok) {
+                            const apiBuf = new Uint8Array(await apiRes.arrayBuffer());
+                            const modelBuf = new Uint8Array(await modelRes.arrayBuffer());
+                            const apiDb = new SQL.Database(apiBuf);
+                            const modelDb = new SQL.Database(modelBuf);
+                            const r1 = apiDb.exec("SELECT id, platform, url, key, remark, useProxy FROM api_configs");
+                            if (r1.length > 0) {
+                                apiLibrary.value = r1[0].values.map(row => ({
+                                    id: row[0], platform: row[1], url: row[2], key: row[3],
+                                    remark: row[4] || '', useProxy: !!row[5]
+                                }));
+                            }
+                            const r2 = modelDb.exec("SELECT id, apiId, modelName, remark FROM favorite_models");
+                            if (r2.length > 0) {
+                                favoriteModels.value = r2[0].values.map(row => ({
+                                    id: row[0], apiId: row[1], modelName: row[2], remark: row[3] || ''
+                                }));
+                            }
+                            apiDb.close();
+                            modelDb.close();
+                            isUnlocked.value = true;
+                        }
+                    }
+                } catch (e) {
+                    console.error('数据库加载失败:', e);
+                }
+            });
+
+            return {
+                currentTab, switchTab, apiLibrary, showMobileConfig, showApiKey, getApiById,
+                sortedApiLibrary, uniquePlatforms,
+                searchQuery, filteredList, isDrawerOpen, form, openDrawer, closeDrawer, saveItem, deleteItem, handleExport, maskKey,
+                
+                showSearchDropdown, filteredSearchPlatforms, handleSearchInput, handleSearchFocus, toggleSearchDropdown, clearSearch, handleSearchBlur, selectSearch,
+
+                showPlatformDropdown, filteredPlatforms, handlePlatformInput, handlePlatformFocus, togglePlatformDropdown, clearPlatform, handlePlatformBlur, selectPlatform,
+
+                favoriteModels, favSearchQuery, favFilterApiId, filteredFavList, isFavDrawerOpen, favForm, 
+                favAvailablePlatforms,
+                openFavDrawer, openFavDrawerFromDebug, closeFavDrawer, saveFavItem, deleteFavItem, handleFavExport, getApiPlatformName, isCurrentModelFavorited, jumpToModel,
+                
+                selectedApiId, apiConfig, messages, userInput, isRequesting,
+                availableModels, isFetchingModels, fetchModelError, showModelDropdown, filteredModels,
+                isTestingModel, testModel,
+                fileInput, attachedFiles, handleFileUpload, removeFile, isDeepThink, getFileIconClass, getFileColorClass, isParsingFile,
+                clearApiSelection, handleModelInput, handleModelFocus, toggleModelDropdown, clearModel,
+                fetchModels, insertQuickText, handleModelBlur, selectModel, sendRequest, clearMessages, renderMarkdown,
+
+                // 加密相关
+                showSettings, hasEncFiles, isUnlocked, isProcessing, settingsPassword, settingsError, sessionPassword, oldPw, newPw, confirmPw,
+                unlockDatabase, changePassword, removeEncryption, setExportPassword, clearExportPassword
+            };
+        }
+    }).mount('#app');
+</script>
+<style>
+    .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+</body>
+</html>
