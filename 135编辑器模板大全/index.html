@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>135编辑器 模板列表</title>
+<title>微信公众号模板大全</title>
 <style>
 :root{--primary:#07C160;--primary-dark:#06AD56;--primary-light:#e8f8ee;--bg:#f0f2f5;--card:#fff;--text:#1a1a1a;--text-secondary:#888;--border:#e5e5e5}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -40,8 +40,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
 .right-header .copy-btn:active{background:var(--primary);color:#fff;border-color:var(--primary)}
 .right-header .copy-btn.ok{background:var(--primary);color:#fff;border-color:var(--primary)}
 .right iframe{flex:1;width:100%;border:none;background:#fff}
-.pager{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 10px;border-top:1px solid var(--border);background:#fafbfc;flex-shrink:0;font-size:12px}
-.pager .p-btn{padding:3px 10px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:#fff;color:var(--text);transition:all .12s;font-family:inherit;font-size:12px}
+.pager{display:flex;align-items:center;justify-content:center;gap:3px;padding:6px 8px;border-top:1px solid var(--border);background:#fafbfc;flex-shrink:0;font-size:12px}
+.pager .p-btn{padding:2px 6px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:#fff;color:var(--text);transition:all .12s;font-family:inherit;font-size:12px}
 .pager .p-btn:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
 .pager .p-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);cursor:default}
 .pager .p-btn:disabled{opacity:.4;cursor:default}
@@ -55,7 +55,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
 
   <div class="left">
     <div class="left-header">
-      <h2>135编辑器 模板列表</h2>
+      <h2>微信公众号模板大全</h2>
 
     </div>
     <div class="search-bar">
@@ -145,7 +145,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
     var el = document.getElementById('pager');
     var h = '<button class="p-btn" onclick="goPage(1)"' + (_page<=1?' disabled':'') + '>&#171;</button>';
     h += '<button class="p-btn" onclick="goPage(' + (_page-1) + ')"' + (_page<=1?' disabled':'') + '>&lsaquo;</button>';
-    var start = Math.max(1, _page-2);
+    var start = Math.max(1, _page-1);
     var end = Math.min(totalPages, _page+2);
     if (start > 1) { h += '<button class="p-btn" onclick="goPage(1)">1</button>'; if (start>2) h += '<span class="p-info">...</span>'; }
     for (var p = start; p <= end; p++) {
@@ -154,8 +154,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
     if (end < totalPages) { if (end<totalPages-1) h += '<span class="p-info">...</span>'; h += '<button class="p-btn" onclick="goPage(' + totalPages + ')">' + totalPages + '</button>'; }
     h += '<button class="p-btn" onclick="goPage(' + (_page+1) + ')"' + (_page>=totalPages?' disabled':'') + '>&rsaquo;</button>';
     h += '<button class="p-btn" onclick="goPage(' + totalPages + ')"' + (_page>=totalPages?' disabled':'') + '>&#187;</button>';
-    h += '<span class="p-info">' + _page + '/' + totalPages + '</span>';
-    h += '<input class="p-jump" id="pageJump" type="text" placeholder="页码" onkeydown="if(event.key===&apos;Enter&apos;)jumpPage()">';
+    h += '<input class="p-jump" id="pageJump" type="text" placeholder="1/' + totalPages + '" onkeydown="if(event.key===&apos;Enter&apos;)jumpPage()">';
     h += '<button class="p-btn" onclick="jumpPage()">跳转</button>';
     el.innerHTML = h;
   }
