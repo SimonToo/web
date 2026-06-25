@@ -160,12 +160,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         styles = extract_styles(html)
         l_img = extract_l_img(html)
-        if l_img:
-            l_img = l_img.replace(
-                '<div class="l-img"',
-                '<div class="l-img" style="display:inline-block!important;max-width:576px!important;margin:0 auto!important;overflow:hidden"',
-                1
-            )
 
         if not l_img:
             self.send_error(404, "未找到模板内容 (div.l-img)")
@@ -175,6 +169,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             '<!DOCTYPE html>\n<html><head><meta charset="utf-8">\n'
             f'<base href="https://www.135editor.com/">\n{styles}\n'
             '<style>body{text-align:center!important;margin:0;padding:10px}'
+            '.l-img{display:inline-block!important;max-width:576px!important;width:auto!important;margin:0 auto!important;overflow:hidden}'
             '.l-img img{max-width:100%!important;height:auto;display:block}</style>\n'
             f'</head><body>\n{l_img}\n</body></html>'
         )
