@@ -3,7 +3,7 @@ import http.server
 import urllib.request
 import re
 import os
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote
 
 PORT = 8000
 FETCH_HEADERS = {
@@ -73,10 +73,59 @@ def extract_l_img(html):
 def extract_styles(html):
     parts = []
     for m in re.finditer(r'<style[^>]*>.*?</style>', html, re.S | re.I):
+        inner = m.group()
+        inner = inner[inner.find('>')+1:inner.rfind('<')].strip()
+        if not inner or inner.startswith("'"):
+            continue
         parts.append(m.group())
     for m in re.finditer(r'<link[^>]*rel=(["\'])stylesheet\1[^>]*>', html, re.S | re.I):
         parts.append(m.group())
     return '\n'.join(parts)
+
+
+def extract_js_content(html):
+    m = re.search(r'<div[^>]*id=["\']js_content["\'][^>]*>', html, re.I)
+    if not m:
+        return ""
+    tag_end = html.find('>', m.start())
+    if tag_end == -1:
+        return ""
+    pos = tag_end + 1
+    depth = 1
+    while pos < len(html) and depth > 0:
+        if html[pos:pos+4] == '<!--':
+            end_idx = html.find('-->', pos+4)
+            if end_idx > pos:
+                pos = end_idx + 3
+                continue
+        lt = html.find('<', pos)
+        if lt == -1:
+            break
+        if lt + 1 < len(html) and html[lt+1] == '/':
+            gt = html.find('>', lt)
+            if gt > lt:
+                tag = html[lt+2:gt].strip().split()[0].lower() if gt > lt + 2 else ''
+                if tag == 'div':
+                    depth -= 1
+                pos = gt + 1
+                continue
+        gt = html.find('>', lt)
+        if gt > lt:
+            inner = html[lt+1:gt].strip()
+            tag_name = inner.split()[0].lower() if inner else ''
+            if tag_name in ('script', 'style') and inner[-1] != '/':
+                end_tag = f'</{tag_name}>'
+                end_idx = html.find(end_tag, gt)
+                if end_idx > gt:
+                    pos = end_idx + len(end_tag)
+                    continue
+            if tag_name == 'div' and inner[-1] != '/':
+                depth += 1
+            pos = gt + 1
+    result = html[m.start():pos]
+    result = re.sub(r'data-src(=["\'])', r'src\1', result)
+    result = re.sub(r'data-srcset(=["\'])', r'srcset\1', result)
+    return result
 
 
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
@@ -86,6 +135,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         if parsed.path == '/proxy' and 'id' in params:
             return self._proxy_template(params['id'][0])
+        if parsed.path == '/wechat-proxy' and 'url' in params:
+            return self._proxy_wechat(params['url'][0])
+        if parsed.path == '/img-proxy' and 'url' in params:
+            return self._proxy_image(params['url'][0])
         super().do_GET()
 
     def _proxy_template(self, tid):
@@ -107,6 +160,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
         styles = extract_styles(html)
         l_img = extract_l_img(html)
+        if l_img:
+            l_img = l_img.replace(
+                '<div class="l-img"',
+                '<div class="l-img" style="display:inline-block!important;max-width:576px!important;margin:0 auto!important;overflow:hidden"',
+                1
+            )
 
         if not l_img:
             self.send_error(404, "未找到模板内容 (div.l-img)")
@@ -116,7 +175,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             '<!DOCTYPE html>\n<html><head><meta charset="utf-8">\n'
             f'<base href="https://www.135editor.com/">\n{styles}\n'
             '<style>body{text-align:center!important;margin:0;padding:10px}'
-            '.l-img{display:inline-block!important;max-width:100%;margin:0 auto!important;float:none!important}'
             '.l-img img{max-width:100%!important;height:auto;display:block}</style>\n'
             f'</head><body>\n{l_img}\n</body></html>'
         )
@@ -126,9 +184,80 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(result.encode("utf-8"))
 
+    def _proxy_wechat(self, url):
+        if 'mp.weixin.qq.com' not in url:
+            self.send_error(400, "不是有效的公众号文章链接")
+            return
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S9080) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+                "Accept": FETCH_HEADERS["Accept"],
+                "Accept-Language": FETCH_HEADERS["Accept-Language"],
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                html = resp.read().decode('utf-8', errors='replace')
+        except urllib.request.HTTPError as e:
+            self.send_error(e.code, f"公众号文章返回错误 {e.code}")
+            return
+        except Exception as e:
+            self.send_error(502, f"请求失败: {e}")
+            return
+
+        styles = extract_styles(html)
+        content = extract_js_content(html)
+
+        if not content:
+            self.send_error(404, "未找到文章正文 (div#js_content)")
+            return
+
+        scheme = 'https' if self.headers.get('X-Forwarded-Proto', 'http') == 'https' else 'http'
+        host = self.headers.get('Host', f'localhost:{PORT}')
+        img_prefix = f'{scheme}://{host}/img-proxy?url='
+        content = re.sub(
+            r'(src=["\'])https?://[^"\']*?qpic\.cn[^"\']*?(["\'"])',
+            lambda m: m.group(1) + img_prefix + quote(m.group(0)[len(m.group(1)):-1]) + m.group(2),
+            content
+        )
+
+        result = (
+            '<!DOCTYPE html>\n<html><head><meta charset="utf-8">\n'
+            '<meta name="referrer" content="no-referrer">\n'
+            f'<base href="https://mp.weixin.qq.com/">\n{styles}\n'
+            '<style>body{text-align:center!important;margin:0;padding:10px}'
+            '#js_content{visibility:visible!important;opacity:1!important;display:inline-block!important;max-width:576px!important;margin:0 auto!important;text-align:left}'
+            '#js_content img{max-width:100%!important;height:auto;display:block}</style>\n'
+            f'</head><body>\n{content}\n</body></html>'
+        )
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(result.encode("utf-8"))
+
+    def _proxy_image(self, img_url):
+        if 'qpic.cn' not in img_url:
+            self.send_error(400, "不支持的图片链接")
+            return
+        try:
+            req = urllib.request.Request(img_url, headers={
+                "User-Agent": FETCH_HEADERS["User-Agent"],
+                "Referer": "https://mp.weixin.qq.com/",
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = resp.read()
+                ctype = resp.headers.get("Content-Type", "image/jpeg")
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(data)
+        except Exception as e:
+            self.send_error(502, f"图片请求失败: {e}")
+
     def log_message(self, format, *args):
         msg = format % args
-        if '/proxy?' in msg:
+        if '/proxy?' in msg or '/wechat-proxy?' in msg or '/img-proxy?' in msg:
             print(f"[PROXY] {self.address_string()} - {msg}", flush=True)
         else:
             super().log_message(format, *args)
@@ -137,7 +266,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
-    print(f"  >>  135编辑器 模板代理服务器  <<")
+    print(f"  >>  135编辑器 + 公众号文章代理服务器  <<")
     print(f"  启动于: http://localhost:{PORT}")
     print(f"  Ctrl+C 停止")
     print()
