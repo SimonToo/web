@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>微信公众号模板大全</title>
+<style>
+:root{--primary:#07C160;--primary-dark:#06AD56;--primary-light:#e8f8ee;--bg:#f0f2f5;--card:#fff;--text:#1a1a1a;--text-secondary:#888;--border:#e5e5e5}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;color:var(--text);background:var(--bg);overflow:hidden}
+.split{display:flex;height:100vh}
+.left{flex:0 0 420px;min-width:420px;display:flex;flex-direction:column;background:var(--card);border-right:1px solid var(--border)}
+.left-header{padding:16px 18px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff}
+.left-header h2{font-size:17px;font-weight:700;letter-spacing:.5px}
+.left-header p{font-size:11px;opacity:.7;margin-top:2px}
+.search-bar{padding:8px 14px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
+.search-bar input{flex:1;min-width:0;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;outline:0;font-family:inherit;background:#f9f9f9;transition:border-color .2s}
+.search-bar input:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light);background:#fff}
+.search-bar .input-wrap{position:relative;flex:1;min-width:0}
+.search-bar .input-wrap input{width:100%}
+.search-bar .clear-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;line-height:1;cursor:pointer;color:#bbb;padding:0 4px;display:none;user-select:none}
+.search-bar .clear-btn:hover{color:#666}
+.search-bar .count{font-size:12px;color:var(--text-secondary);white-space:nowrap}
+.table-wrap{flex:1;overflow-y:auto;overflow-x:hidden}
+.table-wrap table{width:100%;border-collapse:collapse}
+.table-wrap thead{position:sticky;top:0;z-index:1}
+.table-wrap thead th{background:#f8f9fc;padding:6px 10px;text-align:left;font-size:11px;color:var(--text-secondary);font-weight:600;border-bottom:2px solid var(--border);white-space:nowrap}
+.table-wrap thead th.sortable{cursor:pointer;user-select:none}
+.table-wrap thead th.sortable:hover{color:var(--primary)}
+.table-wrap thead th .arrow{font-size:10px;margin-left:2px;color:var(--primary)}
+.table-wrap td{padding:5px 10px;border-bottom:1px solid #f5f5f5;font-size:12px;cursor:pointer;vertical-align:middle;line-height:1.5}
+.table-wrap tr:hover td{background:#f0faf4}
+.table-wrap tr.active td{background:#dcf5e7}
+.c-seq{color:#bbb;font-size:11px;text-align:center;width:30px}
+.c-name{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;width:100%}
+.right{flex:1;display:flex;flex-direction:column;background:var(--card)}
+.right-header{padding:8px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);flex-shrink:0}
+.right-header .copy-btn{padding:5px 14px;font-size:12px;border:1px solid var(--border);border-radius:5px;cursor:pointer;background:#fff;color:var(--text);transition:all .15s;font-family:inherit}
+.right-header .copy-btn:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+.right-header .copy-btn:active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.right-header .copy-btn.ok{background:var(--primary);color:#fff;border-color:var(--primary)}
+.right iframe{flex:1;width:100%;border:none;background:#fff}
+.pager{display:flex;align-items:center;justify-content:center;gap:3px;padding:6px 8px;border-top:1px solid var(--border);background:#fafbfc;flex-shrink:0;font-size:12px}
+.pager .p-btn{padding:2px 6px;border:1px solid var(--border);border-radius:4px;cursor:pointer;background:#fff;color:var(--text);transition:all .12s;font-family:inherit;font-size:12px}
+.pager .p-btn:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary)}
+.pager .p-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);cursor:default}
+.pager .p-btn:disabled{opacity:.4;cursor:default}
+.pager .p-info{color:var(--text-secondary);font-size:11px;white-space:nowrap}
+.pager .p-jump{width:38px;padding:2px 4px;text-align:center;border:1px solid var(--border);border-radius:3px;font-size:12px;font-family:inherit;outline:0}
+.pager .p-jump:focus{border-color:var(--primary)}
+</style>
+</head>
+<body>
+<div class="split">
+
+  <div class="left">
+    <div class="left-header">
+      <h2>微信公众号模板大全</h2>
+
+    </div>
+    <div class="search-bar">
+      <div class="input-wrap">
+        <input type="text" id="searchInput" placeholder="搜索模板名称..." oninput="onSearch()">
+        <span class="clear-btn" id="clearBtn" onclick="onClearSearch()">×</span>
+      </div>
+      <span class="count" id="resultCount">30665</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th class="c-seq">序号</th>
+          <th class="sortable" onclick="toggleSort()">名称<span class="arrow" id="sortArrow"></span></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <div class="right">
+    <div class="right-header">
+      <button class="copy-btn" id="copyBtn" onclick="copyContent()">复制模板</button>
+      <span style="font-size:11px;color:var(--text-secondary)" id="copyMsg"></span>
+    </div>
+    <iframe id="viewer"></iframe>
+  </div>
+
+</div>
+
+<script src="mould-data.js"></script>
+<script>
+(function() {
+  var IS_FILE = location.protocol === 'file:';
+  var TBODY = document.getElementById('tbody');
+  var VIEWER = document.getElementById('viewer');
+  var TOTAL = M.length;
+  var _searchQuery = '';
+  var _filteredLength = TOTAL;
+  var _sortAsc = true;
+  var _pageSize = 50;
+  var _page = 1;
+
+  function esc(s) {
+    return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  window.toggleSort = function() {
+    _sortAsc = !_sortAsc;
+    _page = 1;
+    document.getElementById('sortArrow').textContent = _sortAsc ? ' \u25b4' : ' \u25be';
+    renderRows();
+  };
+
+  window.onSearch = function() {
+    _searchQuery = document.getElementById('searchInput').value.toLowerCase();
+    document.getElementById('clearBtn').style.display = _searchQuery ? 'block' : 'none';
+    _page = 1;
+    renderRows();
+  };
+
+  window.onClearSearch = function() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('clearBtn').style.display = 'none';
+    onSearch();
+    document.getElementById('searchInput').focus();
+  };
+
+  function getSorted() {
+    var f = M;
+    if (_searchQuery)
+      f = f.filter(function(t){return (t[1]||'').toLowerCase().indexOf(_searchQuery)!==-1});
+    return f.sort(function(a,b) {
+      return _sortAsc
+        ? (a[1]||'').toLowerCase().localeCompare((b[1]||'').toLowerCase())
+        : (b[1]||'').toLowerCase().localeCompare((a[1]||'').toLowerCase());
+    });
+  }
+
+  window.goPage = function(p) {
+    _page = p;
+    renderRows();
+  };
+
+  function renderPager(totalPages) {
+    var el = document.getElementById('pager');
+    var h = '<button class="p-btn" onclick="goPage(1)"' + (_page<=1?' disabled':'') + '>&#171;</button>';
+    h += '<button class="p-btn" onclick="goPage(' + (_page-1) + ')"' + (_page<=1?' disabled':'') + '>&lsaquo;</button>';
+    var start = Math.max(1, _page-1);
+    var end = Math.min(totalPages, _page+2);
+    if (start > 1) { h += '<button class="p-btn" onclick="goPage(1)">1</button>'; if (start>2) h += '<span class="p-info">...</span>'; }
+    for (var p = start; p <= end; p++) {
+      h += '<button class="p-btn' + (p===_page?' active':'') + '" onclick="goPage(' + p + ')">' + p + '</button>';
+    }
+    if (end < totalPages) { if (end<totalPages-1) h += '<span class="p-info">...</span>'; h += '<button class="p-btn" onclick="goPage(' + totalPages + ')">' + totalPages + '</button>'; }
+    h += '<button class="p-btn" onclick="goPage(' + (_page+1) + ')"' + (_page>=totalPages?' disabled':'') + '>&rsaquo;</button>';
+    h += '<button class="p-btn" onclick="goPage(' + totalPages + ')"' + (_page>=totalPages?' disabled':'') + '>&#187;</button>';
+    h += '<input class="p-jump" id="pageJump" type="text" placeholder="1/' + totalPages + '" onkeydown="if(event.key===&apos;Enter&apos;)jumpPage()">';
+    h += '<button class="p-btn" onclick="jumpPage()">跳转</button>';
+    el.innerHTML = h;
+  }
+
+  window.jumpPage = function() {
+    var input = document.getElementById('pageJump');
+    var p = parseInt(input.value, 10);
+    var totalPages = Math.ceil(_filteredLength / _pageSize);
+    if (p >= 1 && p <= totalPages) {
+      goPage(p);
+    } else {
+      input.value = _page;
+    }
+  };
+
+  function renderRows() {
+    var sorted = getSorted();
+    _filteredLength = sorted.length;
+    var totalPages = Math.ceil(_filteredLength / _pageSize);
+    if (_page > totalPages) _page = totalPages || 1;
+    var start = (_page - 1) * _pageSize;
+    var pageItems = sorted.slice(start, start + _pageSize);
+    TBODY.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < pageItems.length; i++) {
+      var t = pageItems[i];
+      var tr = document.createElement('tr');
+      tr.dataset.id = t[0];
+      tr.onclick = function() { loadTemplate(parseInt(this.dataset.id), this); };
+      tr.innerHTML =
+        '<td class="c-seq">' + (start + i + 1) + '</td>' +
+        '<td class="c-name" title="'+esc(t[1])+'">'+esc(t[1])+'</td>';
+      frag.appendChild(tr);
+    }
+    TBODY.appendChild(frag);
+    renderPager(totalPages);
+    document.getElementById('resultCount').textContent = _filteredLength + ' / ' + TOTAL;
+    document.querySelector('.table-wrap').scrollTop = 0;
+
+    if (IS_FILE) {
+      VIEWER.srcdoc = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;'
+        +'margin:0;font-family:sans-serif;font-size:14px;color:#999;text-align:center;line-height:2">'
+        +'\u8bf7\u901a\u8fc7 <code>python proxy_server.py</code> \u542f\u52a8\u4ee3\u7406\u540e\u8bbf\u95ee'
+        +'<br><small>http://localhost:8000</small></div>';
+    }
+  }
+
+  window.loadTemplate = function(id, el) {
+    if (IS_FILE) {
+      window.open('https://www.135editor.com/editor_styles/'+id+'.html','_blank');
+      return;
+    }
+    var prev = TBODY.querySelector('tr.active');
+    if (prev) prev.classList.remove('active');
+    if (el) el.classList.add('active');
+    VIEWER.src = '/proxy?id=' + id + '&_=' + Date.now();
+  };
+
+  window.copyContent = function() {
+    if (IS_FILE) return;
+    try {
+      var doc = VIEWER.contentDocument || VIEWER.contentWindow.document;
+      if (!doc) return;
+      var el = doc.querySelector('.l-img');
+      if (!el) return;
+      var bg = window.getComputedStyle(doc.body).backgroundColor;
+      if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') bg = '';
+      var elBg = window.getComputedStyle(el).backgroundColor;
+      if (elBg && elBg !== 'rgba(0, 0, 0, 0)' && elBg !== 'transparent') bg = elBg;
+      var css = '', sts = doc.querySelectorAll('head style');
+      for (var i = 0; i < sts.length; i++) css += sts[i].textContent;
+      var html = '<style>' + css + '</style><div class="l-img" style="' + (bg?'background:'+bg+';':'') + 'max-width:100%">' + el.innerHTML + '</div>';
+      var btn = document.getElementById('copyBtn');
+      var done = function() {
+        btn.textContent = '\u2713 \u5df2\u590d\u5236';
+        btn.className = 'copy-btn ok';
+        setTimeout(function() {
+          btn.textContent = '\u590d\u5236\u6a21\u677f';
+          btn.className = 'copy-btn';
+        }, 2000);
+      };
+      if (navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem !== 'undefined') {
+        navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([html], { type: 'text/plain' })
+          })
+        ]).then(done);
+      } else {
+        var tmp = document.createElement('div');
+        tmp.contentEditable = true;
+        tmp.style.cssText = 'position:fixed;left:10px;top:10px;width:1px;height:1px;overflow:hidden;opacity:0.01';
+        tmp.innerHTML = html;
+        document.body.appendChild(tmp);
+        tmp.focus();
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        var range = document.createRange();
+        range.selectNodeContents(tmp.querySelector('.l-img') || tmp);
+        sel.addRange(range);
+        if (document.execCommand('copy')) done();
+        sel.removeAllRanges();
+        document.body.removeChild(tmp);
+      }
+    } catch(e) {}
+  };
+
+  renderRows();
+  document.getElementById('sortArrow').textContent = ' \u25b4';
+
+  window.addEventListener('load', function() {
+    if (!IS_FILE) {
+      var first = TBODY.querySelector('tr');
+      if (first) first.click();
+    }
+  });
+})();
+</script>
+</body>
+</html>
