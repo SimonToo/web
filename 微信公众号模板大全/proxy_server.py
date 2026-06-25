@@ -168,7 +168,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         result = (
             '<!DOCTYPE html>\n<html><head><meta charset="utf-8">\n'
             f'<base href="https://www.135editor.com/">\n{styles}\n'
-            '<style>body{text-align:center!important;margin:0;padding:10px}'
+            '<style>html,body{height:auto!important;margin:0;padding:0}body{background:#fff!important;text-align:center!important}'
             '.l-img{display:inline-block!important;max-width:576px!important;width:auto!important;margin:0 auto!important;overflow:hidden}'
             '.l-img img{max-width:100%!important;height:auto;display:block}</style>\n'
             f'</head><body>\n{l_img}\n</body></html>'
