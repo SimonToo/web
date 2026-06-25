@@ -14,8 +14,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
 .left-header h2{font-size:17px;font-weight:700;letter-spacing:.5px}
 .left-header p{font-size:11px;opacity:.7;margin-top:2px}
 .wechat-bar{padding:6px 14px;display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0;background:#f0f7f0}
-.wechat-bar input{flex:1;min-width:0;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;outline:0;font-family:inherit;background:#fff}
+.wechat-bar .input-wrap{position:relative;flex:1;min-width:0}
+.wechat-bar input{width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:4px;font-size:12px;outline:0;font-family:inherit;background:#fff}
 .wechat-bar input:focus{border-color:var(--primary)}
+.wechat-bar .clear-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:16px;line-height:1;cursor:pointer;color:#bbb;padding:0 4px;display:none;user-select:none}
+.wechat-bar .clear-btn:hover{color:#666}
 .wechat-bar .get-btn{padding:5px 12px;border:none;border-radius:4px;cursor:pointer;background:var(--primary);color:#fff;font-size:12px;white-space:nowrap;font-family:inherit}
 .wechat-bar .get-btn:hover{background:var(--primary-dark)}
 .search-bar{padding:8px 14px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -64,8 +67,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
 
     </div>
     <div class="wechat-bar">
-      <input type="text" id="wechatUrl" placeholder="粘贴公众号文章链接..." onkeydown="if(event.key===&apos;Enter&apos;)fetchWechat()">
-      <button class="get-btn" onclick="fetchWechat()">获取</button>
+      <div class="input-wrap">
+        <input type="text" id="wechatUrl" placeholder="粘贴公众号文章链接..." onkeydown="if(event.key===&apos;Enter&apos;)fetchWechat()" oninput="toggleWechatClear()">
+        <span class="clear-btn" id="wechatClearBtn" onclick="clearWechatUrl()">×</span>
+      </div>
+      <button class="get-btn" onclick="fetchWechat()">获取公众号模板</button>
     </div>
     <div class="search-bar">
       <div class="input-wrap">
@@ -132,6 +138,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','P
     document.getElementById('clearBtn').style.display = 'none';
     onSearch();
     document.getElementById('searchInput').focus();
+  };
+
+  window.toggleWechatClear = function() {
+    document.getElementById('wechatClearBtn').style.display = document.getElementById('wechatUrl').value ? 'block' : 'none';
+  };
+
+  window.clearWechatUrl = function() {
+    document.getElementById('wechatUrl').value = '';
+    document.getElementById('wechatClearBtn').style.display = 'none';
+    document.getElementById('wechatUrl').focus();
   };
 
   function getSorted() {
