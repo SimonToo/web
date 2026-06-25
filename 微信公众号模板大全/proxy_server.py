@@ -6,15 +6,53 @@ import os
 from urllib.parse import urlparse, parse_qs, quote
 
 PORT = 8000
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+MOBILE_UA = "Mozilla/5.0 (Linux; Android 13; SM-S9080) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
 FETCH_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
 }
+
+
+def extract_balanced(html, start):
+    if start < 0:
+        return ""
+    tag_end = html.find('>', start)
+    if tag_end == -1:
+        return ""
+    pos = tag_end + 1
+    depth = 1
+    while pos < len(html) and depth > 0:
+        if html[pos:pos + 4] == '<!--':
+            end_idx = html.find('-->', pos + 4)
+            if end_idx > pos:
+                pos = end_idx + 3
+                continue
+        lt = html.find('<', pos)
+        if lt == -1:
+            break
+        if lt + 1 < len(html) and html[lt + 1] == '/':
+            gt = html.find('>', lt)
+            if gt > lt:
+                tag = html[lt + 2:gt].strip().split()[0].lower() if gt > lt + 2 else ''
+                if tag == 'div':
+                    depth -= 1
+                pos = gt + 1
+                continue
+        gt = html.find('>', lt)
+        if gt > lt:
+            inner = html[lt + 1:gt].strip()
+            tag_name = inner.split()[0].lower() if inner else ''
+            if tag_name in ('script', 'style') and inner[-1] != '/':
+                end_tag = f'</{tag_name}>'
+                end_idx = html.find(end_tag, gt)
+                if end_idx > gt:
+                    pos = end_idx + len(end_tag)
+                    continue
+            if tag_name == 'div' and inner[-1] != '/':
+                depth += 1
+            pos = gt + 1
+    return html[start:pos]
 
 
 def extract_l_img(html):
@@ -23,58 +61,24 @@ def extract_l_img(html):
         idx = html.find("<div class='l-img'")
     if idx == -1:
         m = re.search(r'<div[^>]*class=(["\'])[^"\']*\bl-img\b[^"\']*\1[^>]*>', html, re.I)
-        if not m:
-            return ""
-        idx = m.start()
+        idx = m.start() if m else -1
+    return extract_balanced(html, idx)
 
-    tag_end = html.find('>', idx)
-    if tag_end == -1:
-        return ""
-    pos = tag_end + 1
-    depth = 1
 
-    while pos < len(html) and depth > 0:
-        if html[pos:pos+4] == '<!--':
-            end_idx = html.find('-->', pos+4)
-            if end_idx > pos:
-                pos = end_idx + 3
-                continue
-
-        lt = html.find('<', pos)
-        if lt == -1:
-            break
-
-        if lt + 1 < len(html) and html[lt+1] == '/':
-            gt = html.find('>', lt)
-            if gt > lt:
-                tag = html[lt+2:gt].strip().split()[0].lower() if gt > lt + 2 else ''
-                if tag == 'div':
-                    depth -= 1
-                pos = gt + 1
-                continue
-
-        gt = html.find('>', lt)
-        if gt > lt:
-            inner = html[lt+1:gt].strip()
-            tag_name = inner.split()[0].lower() if inner else ''
-            if tag_name in ('script', 'style') and inner[-1] != '/':
-                end_tag = f'</{tag_name}>'
-                end_idx = html.find(end_tag, gt)
-                if end_idx > gt:
-                    pos = end_idx + len(end_tag)
-                    continue
-            if tag_name == 'div' and inner[-1] != '/':
-                depth += 1
-            pos = gt + 1
-
-    return html[idx:pos]
+def extract_js_content(html):
+    m = re.search(r'<div[^>]*id=["\']js_content["\'][^>]*>', html, re.I)
+    result = extract_balanced(html, m.start() if m else -1)
+    if result:
+        result = re.sub(r'data-src(=["\'])', r'src\1', result)
+        result = re.sub(r'data-srcset(=["\'])', r'srcset\1', result)
+    return result
 
 
 def extract_styles(html):
     parts = []
     for m in re.finditer(r'<style[^>]*>.*?</style>', html, re.S | re.I):
         inner = m.group()
-        inner = inner[inner.find('>')+1:inner.rfind('<')].strip()
+        inner = inner[inner.find('>') + 1:inner.rfind('<')].strip()
         if not inner or inner.startswith("'"):
             continue
         parts.append(m.group())
@@ -83,52 +87,18 @@ def extract_styles(html):
     return '\n'.join(parts)
 
 
-def extract_js_content(html):
-    m = re.search(r'<div[^>]*id=["\']js_content["\'][^>]*>', html, re.I)
-    if not m:
-        return ""
-    tag_end = html.find('>', m.start())
-    if tag_end == -1:
-        return ""
-    pos = tag_end + 1
-    depth = 1
-    while pos < len(html) and depth > 0:
-        if html[pos:pos+4] == '<!--':
-            end_idx = html.find('-->', pos+4)
-            if end_idx > pos:
-                pos = end_idx + 3
-                continue
-        lt = html.find('<', pos)
-        if lt == -1:
-            break
-        if lt + 1 < len(html) and html[lt+1] == '/':
-            gt = html.find('>', lt)
-            if gt > lt:
-                tag = html[lt+2:gt].strip().split()[0].lower() if gt > lt + 2 else ''
-                if tag == 'div':
-                    depth -= 1
-                pos = gt + 1
-                continue
-        gt = html.find('>', lt)
-        if gt > lt:
-            inner = html[lt+1:gt].strip()
-            tag_name = inner.split()[0].lower() if inner else ''
-            if tag_name in ('script', 'style') and inner[-1] != '/':
-                end_tag = f'</{tag_name}>'
-                end_idx = html.find(end_tag, gt)
-                if end_idx > gt:
-                    pos = end_idx + len(end_tag)
-                    continue
-            if tag_name == 'div' and inner[-1] != '/':
-                depth += 1
-            pos = gt + 1
-    result = html[m.start():pos]
-    result = re.sub(r'data-src(=["\'])', r'src\1', result)
-    result = re.sub(r'data-srcset(=["\'])', r'srcset\1', result)
-    return result
-
-
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
+    def _fetch_text(self, url, headers, error_label):
+        try:
+            req = urllib.request.Request(url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return resp.read().decode('utf-8', errors='replace')
+        except urllib.request.HTTPError as e:
+            self.send_error(e.code, f"{error_label} 返回错误 {e.code}")
+        except Exception as e:
+            self.send_error(502, f"请求失败: {e}")
+        return None
+
     def do_GET(self):
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
@@ -143,24 +113,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 
     def _proxy_template(self, tid):
         url = f"https://www.135editor.com/editor_styles/{tid}.html"
-        try:
-            req = urllib.request.Request(url, headers={
-                "User-Agent": FETCH_HEADERS["User-Agent"],
-                "Accept": FETCH_HEADERS["Accept"],
-                "Accept-Language": FETCH_HEADERS["Accept-Language"],
-            })
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                html = resp.read().decode('utf-8', errors='replace')
-        except urllib.request.HTTPError as e:
-            self.send_error(e.code, f"135editor 返回错误 {e.code}")
-            return
-        except Exception as e:
-            self.send_error(502, f"请求失败: {e}")
+        html = self._fetch_text(url, {"User-Agent": UA, **FETCH_HEADERS}, "135editor")
+        if html is None:
             return
 
         styles = extract_styles(html)
         l_img = extract_l_img(html)
-
         if not l_img:
             self.send_error(404, "未找到模板内容 (div.l-img)")
             return
@@ -183,24 +141,12 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
         if 'mp.weixin.qq.com' not in url:
             self.send_error(400, "不是有效的公众号文章链接")
             return
-        try:
-            req = urllib.request.Request(url, headers={
-                "User-Agent": "Mozilla/5.0 (Linux; Android 13; SM-S9080) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-                "Accept": FETCH_HEADERS["Accept"],
-                "Accept-Language": FETCH_HEADERS["Accept-Language"],
-            })
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                html = resp.read().decode('utf-8', errors='replace')
-        except urllib.request.HTTPError as e:
-            self.send_error(e.code, f"公众号文章返回错误 {e.code}")
-            return
-        except Exception as e:
-            self.send_error(502, f"请求失败: {e}")
+        html = self._fetch_text(url, {"User-Agent": MOBILE_UA, **FETCH_HEADERS}, "公众号文章")
+        if html is None:
             return
 
         styles = extract_styles(html)
         content = extract_js_content(html)
-
         if not content:
             self.send_error(404, "未找到文章正文 (div#js_content)")
             return
@@ -235,7 +181,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             return
         try:
             req = urllib.request.Request(img_url, headers={
-                "User-Agent": FETCH_HEADERS["User-Agent"],
+                "User-Agent": UA,
                 "Referer": "https://mp.weixin.qq.com/",
             })
             with urllib.request.urlopen(req, timeout=15) as resp:
@@ -261,9 +207,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     server = http.server.HTTPServer(('0.0.0.0', PORT), ProxyHandler)
-    print(f"  >>  135编辑器 + 公众号文章代理服务器  <<")
+    print("  >>  135编辑器 + 公众号文章代理服务器  <<")
     print(f"  启动于: http://localhost:{PORT}")
-    print(f"  Ctrl+C 停止")
+    print("  Ctrl+C 停止")
     print()
     try:
         server.serve_forever()
