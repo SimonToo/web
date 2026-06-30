@@ -59,7 +59,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         print(f'  {args[0]} {args[1]} {args[2]}')
 
 
-INDEX = '大模型 API 调试与管理工具.html'
+INDEX = 'index.html'
 
 print()
 print('=' * 60)
