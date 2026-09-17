@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OpenCode 模型配置编辑器</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1560px;
+        }
+
+        /* 顶部导航与操作栏 */
+        header {
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        h1 {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            height: 36px;
+            padding: 0 14px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #334155;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+
+        /* 全局拖拽提示遮罩 */
+        #globalDropOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(37, 99, 235, 0.15);
+            backdrop-filter: blur(4px);
+            border: 4px dashed var(--primary);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 99999;
+            pointer-events: none;
+        }
+
+        #globalDropOverlay .tip-box {
+            background: #ffffff;
+            padding: 20px 32px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* 搜索框 */
+        .toolbar {
+            margin-bottom: 16px;
+        }
+
+        .search-input {
+            width: 100%;
+            height: 38px;
+            padding: 0 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            background: #ffffff;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+        }
+
+        /* 响应式多端网格：电脑端固定4列，平板2列，手机1列 */
+        .providers-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            align-items: start;
+        }
+
+        @media (max-width: 1200px) {
+            .providers-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 680px) {
+            body {
+                padding: 12px;
+            }
+            header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .header-actions {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+            }
+            .header-actions .btn {
+                padding: 0 6px;
+                font-size: 12px;
+            }
+            .providers-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 平台卡片整体 */
+        .provider-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: box-shadow 0.2s ease;
+        }
+
+        .provider-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+        }
+
+        /* 卡片头部：将名称与功能操作精巧整合在一行 */
+        .provider-header {
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .provider-title-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .provider-name-input {
+            flex: 1;
+            font-size: 0.95rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+            background: transparent;
+            padding: 3px 6px;
+            border-radius: 4px;
+            color: var(--text-main);
+            min-width: 0;
+        }
+
+        .provider-name-input:focus {
+            background: #ffffff;
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        /* 整合在顶部的图标操作组 */
+        .header-icon-btns {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .icon-btn {
+            height: 28px;
+            padding: 0 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            background: #ffffff;
+            transition: all 0.15s ease;
+        }
+
+        .btn-add-model {
+            color: var(--primary);
+            border-color: #bfdbfe;
+            background: #eff6ff;
+        }
+        .btn-add-model:hover {
+            background: #dbeafe;
+        }
+
+        .btn-del-platform {
+            color: var(--danger);
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+        .btn-del-platform:hover {
+            background: #fee2e2;
+        }
+
+        .provider-baseurl-input {
+            width: 100%;
+            font-size: 12px;
+            border: 1px solid var(--border);
+            background: #ffffff;
+            padding: 5px 8px;
+            border-radius: 6px;
+            outline: none;
+            color: var(--text-sub);
+        }
+        .provider-baseurl-input:focus {
+            border-color: var(--primary);
+            color: var(--text-main);
+        }
+
+        /* 模型容器 */
+        .models-container {
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 420px;
+            overflow-y: auto;
+        }
+
+        .model-card {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            background: #f8fafc;
+            border: 1px solid #edf2f7;
+            border-radius: 6px;
+        }
+
+        .model-field {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .model-field label {
+            font-size: 11px;
+            color: var(--text-sub);
+        }
+
+        .model-input {
+            width: 100%;
+            padding: 4px 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+            background: #ffffff;
+            outline: none;
+        }
+
+        .model-input:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-del-model {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-del-model:hover {
+            background: #fee2e2;
+            color: var(--danger);
+        }
+
+        .empty-hint {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px;
+            color: var(--text-sub);
+            background: #fff;
+            border-radius: 10px;
+            border: 1px dashed var(--border);
+        }
+    </style>
+</head>
+<body>
+
+<div id="globalDropOverlay">
+    <div class="tip-box">
+        📂 松开鼠标即可解析并导入配置
+    </div>
+</div>
+
+<div class="container">
+    <header>
+        <h1>OpenCode 模型配置编辑器</h1>
+        <div class="header-actions">
+            <input type="file" id="fileInput" accept=".json,.jsonc" style="display: none;">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">📁 选择配置</button>
+            <button class="btn" onclick="addProvider()">➕ 添加平台</button>
+            <button class="btn" onclick="exportConfig()">💾 导出配置</button>
+        </div>
+    </header>
+
+    <div class="toolbar">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索平台或模型 ID..." oninput="filterCards()">
+    </div>
+
+    <!-- 自适应网格（电脑端4列 / 移动端自适应） -->
+    <div class="providers-grid" id="providersList"></div>
+</div>
+
+<script>
+    let configData = {
+        "$schema": "https://opencode.ai/config.json",
+        "provider": {}
+    };
+
+    // 全局拖拽
+    const overlay = document.getElementById('globalDropOverlay');
+    let dragCounter = 0;
+
+    window.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dragCounter++;
+        overlay.style.display = 'flex';
+    });
+
+    window.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    window.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            overlay.style.display = 'none';
+        }
+    });
+
+    window.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragCounter = 0;
+        overlay.style.display = 'none';
+        
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+            handleFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+            e.target.value = '';
+        }
+    });
+
+    function handleFile(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const text = e.target.result;
+                const parsed = parseJSONC(text);
+                if (!parsed.provider) {
+                    parsed.provider = {};
+                }
+                configData = parsed;
+                render();
+            } catch (err) {
+                alert('解析文件失败，请确保格式正确：' + err.message);
+            }
+        };
+        reader.readAsText(file, 'utf-8');
+    }
+
+    function parseJSONC(text) {
+        if (!text) return {};
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+
+        let out = '';
+        let inString = false;
+        let isEscaped = false;
+        let inSingleComment = false;
+        let inMultiComment = false;
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const nextCh = text[i + 1];
+
+            if (inSingleComment) {
+                if (ch === '\n' || ch === '\r') {
+                    inSingleComment = false;
+                    out += ch;
+                }
+                continue;
+            }
+
+            if (inMultiComment) {
+                if (ch === '*' && nextCh === '/') {
+                    inMultiComment = false;
+                    i++;
+                }
+                continue;
+            }
+
+            if (inString) {
+                if (isEscaped) {
+                    isEscaped = false;
+                    out += ch;
+                } else if (ch === '\\') {
+                    isEscaped = true;
+                    out += ch;
+                } else if (ch === '"') {
+                    inString = false;
+                    out += ch;
+                } else {
+                    const code = ch.charCodeAt(0);
+                    if (ch === '\n') out += '\\n';
+                    else if (ch === '\r') out += '\\r';
+                    else if (ch === '\t') out += '\\t';
+                    else if (code < 0x20) out += '\\u' + ('0000' + code.toString(16)).slice(-4);
+                    else out += ch;
+                }
+                continue;
+            }
+
+            if (ch === '"') {
+                inString = true;
+                out += ch;
+            } else if (ch === '/' && nextCh === '/') {
+                inSingleComment = true;
+                i++;
+            } else if (ch === '/' && nextCh === '*') {
+                inMultiComment = true;
+                i++;
+            } else {
+                out += ch;
+            }
+        }
+
+        out = out.replace(/,\s*([\]}])/g, '$1');
+        return JSON.parse(out);
+    }
+
+    function render() {
+        const container = document.getElementById('providersList');
+        container.innerHTML = '';
+
+        const providers = configData.provider || {};
+        const providerKeys = Object.keys(providers);
+
+        if (providerKeys.length === 0) {
+            container.innerHTML = '<div class="empty-hint">暂无配置数据。支持选择文件、拖入文件或点击添加平台。</div>';
+            return;
+        }
+
+        providerKeys.forEach(pName => {
+            const provider = providers[pName];
+            const models = provider.models || {};
+            const baseURL = provider.options?.baseURL || '';
+
+            const card = document.createElement('div');
+            card.className = 'provider-card';
+            card.dataset.provider = pName.toLowerCase();
+
+            // 头部：名称与操作紧凑融为一行
+            card.innerHTML = `
+                <div class="provider-header">
+                    <div class="provider-title-bar">
+                        <input type="text" class="provider-name-input" value="${escapeHtml(pName)}" title="点击修改平台名称"
+                            onchange="updateProviderName('${escapeJs(pName)}', this.value)">
+                        <div class="header-icon-btns">
+                            <button class="icon-btn btn-add-model" title="添加模型" onclick="addModel('${escapeJs(pName)}')">➕ 模型</button>
+                            <button class="icon-btn btn-del-platform" title="删除平台" onclick="deleteProvider('${escapeJs(pName)}')">🗑️</button>
+                        </div>
+                    </div>
+                    <input type="text" class="provider-baseurl-input" placeholder="Base URL: https://..." value="${escapeHtml(baseURL)}"
+                        onchange="updateBaseURL('${escapeJs(pName)}', this.value)">
+                </div>
+                <div class="models-container" id="models-${escapeCssId(pName)}"></div>
+            `;
+
+            const modelsContainer = card.querySelector(`#models-${CSS.escape(escapeCssId(pName))}`);
+            const modelKeys = Object.keys(models);
+
+            if (modelKeys.length === 0) {
+                modelsContainer.innerHTML = '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">暂无模型，点击上方“➕ 模型”</div>';
+            } else {
+                modelKeys.forEach(mKey => {
+                    const modelObj = models[mKey];
+                    const modelId = modelObj.id || mKey;
+
+                    const mCard = document.createElement('div');
+                    mCard.className = 'model-card';
+                    mCard.dataset.model = modelId.toLowerCase();
+                    mCard.innerHTML = `
+                        <div class="model-field">
+                            <label>官方模型 ID</label>
+                            <input type="text" class="model-input" value="${escapeHtml(modelId)}"
+                                placeholder="如: qwen/qwen3.6-plus:free"
+                                onchange="updateModelId('${escapeJs(pName)}', '${escapeJs(mKey)}', this.value)">
+                        </div>
+                        <button class="btn-del-model" title="删除模型" onclick="deleteModel('${escapeJs(pName)}', '${escapeJs(mKey)}')">✕</button>
+                    `;
+                    modelsContainer.appendChild(mCard);
+                });
+            }
+
+            container.appendChild(card);
+        });
+
+        filterCards();
+    }
+
+    function updateProviderName(oldName, newName) {
+        newName = newName.trim();
+        if (!newName || newName === oldName) {
+            render();
+            return;
+        }
+        if (configData.provider[newName]) {
+            alert('平台名称已存在');
+            render();
+            return;
+        }
+        configData.provider[newName] = configData.provider[oldName];
+        delete configData.provider[oldName];
+        render();
+    }
+
+    function updateBaseURL(providerName, val) {
+        if (!configData.provider[providerName].options) {
+            configData.provider[providerName].options = {};
+        }
+        configData.provider[providerName].options.baseURL = val.trim();
+    }
+
+    function addProvider() {
+        const name = prompt('请输入新平台名称（如: 硅基流动）:');
+        if (!name) return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        if (configData.provider[trimmed]) {
+            alert('该平台已存在！');
+            return;
+        }
+
+        configData.provider[trimmed] = {
+            "models": {},
+            "options": {
+                "baseURL": ""
+            }
+        };
+        render();
+    }
+
+    function deleteProvider(providerName) {
+        if (confirm(`确认删除平台 [${providerName}] 及其所有模型吗？`)) {
+            delete configData.provider[providerName];
+            render();
+        }
+    }
+
+    function addModel(providerName) {
+        const modelId = prompt('请输入官方模型 ID（如 qwen/qwen3.6-plus:free）:');
+        if (!modelId) return;
+        const trimmed = modelId.trim();
+        if (!trimmed) return;
+
+        if (!configData.provider[providerName].models) {
+            configData.provider[providerName].models = {};
+        }
+
+        configData.provider[providerName].models[trimmed] = {
+            "id": trimmed,
+            "name": trimmed
+        };
+        render();
+    }
+
+    function updateModelId(providerName, oldModelKey, newModelId) {
+        const trimmed = newModelId.trim();
+        if (!trimmed) {
+            alert('官方模型 ID 不能为空');
+            render();
+            return;
+        }
+
+        const models = configData.provider[providerName].models;
+        delete models[oldModelKey];
+        models[trimmed] = {
+            "id": trimmed,
+            "name": trimmed
+        };
+        render();
+    }
+
+    function deleteModel(providerName, modelKey) {
+        delete configData.provider[providerName].models[modelKey];
+        render();
+    }
+
+    function filterCards() {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        const providerCards = document.querySelectorAll('.provider-card');
+
+        providerCards.forEach(pCard => {
+            const pName = pCard.dataset.provider;
+            const modelCards = pCard.querySelectorAll('.model-card');
+            let hasVisibleModel = false;
+
+            modelCards.forEach(mCard => {
+                const mName = mCard.dataset.model;
+                if (!query || pName.includes(query) || mName.includes(query)) {
+                    mCard.style.display = 'flex';
+                    hasVisibleModel = true;
+                } else {
+                    mCard.style.display = 'none';
+                }
+            });
+
+            if (!query || pName.includes(query) || hasVisibleModel) {
+                pCard.style.display = 'flex';
+            } else {
+                pCard.style.display = 'none';
+            }
+        });
+    }
+
+    function exportConfig() {
+        const finalData = {
+            "$schema": configData.$schema || "https://opencode.ai/config.json",
+            "provider": {}
+        };
+
+        Object.keys(configData.provider).forEach(pName => {
+            const p = configData.provider[pName];
+            const cleanModels = {};
+            
+            Object.keys(p.models || {}).forEach(mKey => {
+                const m = p.models[mKey];
+                const actualId = m.id || mKey;
+                cleanModels[actualId] = {
+                    "id": actualId,
+                    "name": actualId
+                };
+            });
+
+            finalData.provider[pName] = {
+                "models": cleanModels,
+                "options": p.options || {}
+            };
+        });
+
+        let outputText = "{\n";
+        outputText += `    "$schema": "${finalData.$schema}",\n`;
+        outputText += `    "provider": {\n`;
+
+        const providers = Object.keys(finalData.provider);
+        providers.forEach((pName, pIdx) => {
+            const p = finalData.provider[pName];
+            outputText += `        "${pName}": {\n`;
+            outputText += `            "models": {\n`;
+
+            const mKeys = Object.keys(p.models);
+            mKeys.forEach((mKey, mIdx) => {
+                const m = p.models[mKey];
+                outputText += `                "${mKey}": {\n`;
+                outputText += `                    "id": "${m.id}",\n`;
+                outputText += `                    "name": "${m.name}"\n`;
+                outputText += `                }${mIdx < mKeys.length - 1 ? ',' : ''}\n`;
+            });
+
+            outputText += `            },\n`;
+            outputText += `            "options": {\n`;
+            outputText += `                "baseURL": "${p.options?.baseURL || ''}"\n`;
+            outputText += `            }\n`;
+            outputText += `        }${pIdx < providers.length - 1 ? ',' : ''}\n`;
+        });
+
+        outputText += `    }\n`;
+        outputText += `}\n`;
+
+        const blob = new Blob([outputText], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'opencode.jsonc';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function escapeHtml(str) {
+        return (str || '').replace(/"/g, '&quot;');
+    }
+    function escapeJs(str) {
+        return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+    function escapeCssId(str) {
+        return encodeURIComponent(str).replace(/%/g, '_');
+    }
+
+    render();
+</script>
+
+</body>
+</html>
