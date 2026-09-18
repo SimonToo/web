@@ -39,7 +39,7 @@
             max-width: 1560px;
         }
 
-        /* 顶部导航与操作栏 */
+        /* 顶部导航与统一操作栏 */
         header {
             margin-bottom: 16px;
             display: flex;
@@ -50,8 +50,9 @@
         }
 
         h1 {
-            font-size: 1.3rem;
+            font-size: 1.25rem;
             font-weight: 700;
+            white-space: nowrap;
         }
 
         .header-actions {
@@ -59,6 +60,25 @@
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
+            flex: 1;
+            justify-content: flex-end;
+        }
+
+        .search-input {
+            width: 240px;
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
         }
 
         .btn {
@@ -85,7 +105,7 @@
             border-color: #94a3b8;
         }
 
-        /* 全局拖拽提示遮罩 */
+        /* 全局文件拖拽遮罩 */
         #globalDropOverlay {
             position: fixed;
             top: 0;
@@ -112,27 +132,7 @@
             color: var(--primary);
         }
 
-        /* 搜索框 */
-        .toolbar {
-            margin-bottom: 16px;
-        }
-
-        .search-input {
-            width: 100%;
-            height: 38px;
-            padding: 0 12px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-            background: #ffffff;
-        }
-
-        .search-input:focus {
-            border-color: var(--primary);
-        }
-
-        /* 响应式多端网格：电脑端固定4列，平板2列，手机1列 */
+        /* 响应式多端网格 */
         .providers-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -146,7 +146,7 @@
             }
         }
 
-        @media (max-width: 680px) {
+        @media (max-width: 768px) {
             body {
                 padding: 12px;
             }
@@ -155,11 +155,15 @@
                 align-items: stretch;
             }
             .header-actions {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
+                display: flex;
+                flex-wrap: wrap;
+            }
+            .search-input {
+                width: 100%;
+                order: -1;
             }
             .header-actions .btn {
+                flex: 1;
                 padding: 0 6px;
                 font-size: 12px;
             }
@@ -168,7 +172,7 @@
             }
         }
 
-        /* 平台卡片整体 */
+        /* 平台卡片 */
         .provider-card {
             background: var(--card-bg);
             border: 1px solid var(--border);
@@ -177,14 +181,38 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            transition: box-shadow 0.2s ease;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         .provider-card:hover {
             box-shadow: 0 4px 12px rgba(0,0,0,0.06);
         }
 
-        /* 卡片头部：将名称与功能操作精巧整合在一行 */
+        .provider-card.dragging {
+            opacity: 0.35;
+            background: #f1f5f9;
+        }
+
+        .provider-card.drag-over {
+            border: 2px dashed var(--primary);
+            box-shadow: 0 0 12px rgba(37, 99, 235, 0.18);
+        }
+
+        .drag-handle {
+            cursor: grab;
+            color: #94a3b8;
+            font-size: 18px;
+            line-height: 1;
+            padding: 2px 6px;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+        }
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+
+        /* 卡片头部 */
         .provider-header {
             padding: 10px 12px;
             background: #f8fafc;
@@ -198,7 +226,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 8px;
+            gap: 6px;
         }
 
         .provider-name-input {
@@ -219,7 +247,18 @@
             outline: none;
         }
 
-        /* 整合在顶部的图标操作组 */
+        .field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .field-group label {
+            font-size: 11px;
+            color: var(--text-sub);
+            font-weight: 600;
+        }
+
         .header-icon-btns {
             display: flex;
             align-items: center;
@@ -263,7 +302,7 @@
             font-size: 12px;
             border: 1px solid var(--border);
             background: #ffffff;
-            padding: 5px 8px;
+            padding: 6px 8px;
             border-radius: 6px;
             outline: none;
             color: var(--text-sub);
@@ -273,13 +312,13 @@
             color: var(--text-main);
         }
 
-        /* 模型容器 */
+        /* 模型列表 */
         .models-container {
             padding: 10px 12px;
             display: flex;
             flex-direction: column;
             gap: 6px;
-            max-height: 420px;
+            max-height: 400px;
             overflow-y: auto;
         }
 
@@ -293,17 +332,9 @@
             border-radius: 6px;
         }
 
-        .model-field {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
+        .model-card .field-group {
             flex: 1;
             min-width: 0;
-        }
-
-        .model-field label {
-            font-size: 11px;
-            color: var(--text-sub);
         }
 
         .model-input {
@@ -312,7 +343,7 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 12px;
-            font-family: monospace;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             background: #ffffff;
             outline: none;
         }
@@ -342,9 +373,9 @@
         .empty-hint {
             grid-column: 1 / -1;
             text-align: center;
-            padding: 40px;
+            padding: 48px 16px;
             color: var(--text-sub);
-            background: #fff;
+            background: #ffffff;
             border-radius: 10px;
             border: 1px dashed var(--border);
         }
@@ -353,15 +384,14 @@
 <body>
 
 <div id="globalDropOverlay">
-    <div class="tip-box">
-        📂 松开鼠标即可解析并导入配置
-    </div>
+    <div class="tip-box">📂 松开鼠标即可解析并导入配置</div>
 </div>
 
 <div class="container">
     <header>
         <h1>OpenCode 模型配置编辑器</h1>
         <div class="header-actions">
+            <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索平台或模型 ID..." oninput="filterCards()">
             <input type="file" id="fileInput" accept=".json,.jsonc" style="display: none;">
             <button class="btn" onclick="document.getElementById('fileInput').click()">📁 选择配置</button>
             <button class="btn" onclick="addProvider()">➕ 添加平台</button>
@@ -369,11 +399,6 @@
         </div>
     </header>
 
-    <div class="toolbar">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索平台或模型 ID..." oninput="filterCards()">
-    </div>
-
-    <!-- 自适应网格（电脑端4列 / 移动端自适应） -->
     <div class="providers-grid" id="providersList"></div>
 </div>
 
@@ -383,21 +408,26 @@
         "provider": {}
     };
 
-    // 全局拖拽
+    let draggingKey = null;
+
+    // --- 文件拖入解析 ---
     const overlay = document.getElementById('globalDropOverlay');
     let dragCounter = 0;
 
     window.addEventListener('dragenter', (e) => {
+        if (draggingKey) return;
         e.preventDefault();
         dragCounter++;
         overlay.style.display = 'flex';
     });
 
     window.addEventListener('dragover', (e) => {
+        if (draggingKey) return;
         e.preventDefault();
     });
 
     window.addEventListener('dragleave', (e) => {
+        if (draggingKey) return;
         e.preventDefault();
         dragCounter--;
         if (dragCounter <= 0) {
@@ -407,10 +437,10 @@
     });
 
     window.addEventListener('drop', (e) => {
+        if (draggingKey) return;
         e.preventDefault();
         dragCounter = 0;
         overlay.style.display = 'none';
-        
         if (e.dataTransfer && e.dataTransfer.files.length > 0) {
             handleFile(e.dataTransfer.files[0]);
         }
@@ -427,11 +457,8 @@
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const text = e.target.result;
-                const parsed = parseJSONC(text);
-                if (!parsed.provider) {
-                    parsed.provider = {};
-                }
+                const parsed = parseJSONC(e.target.result);
+                if (!parsed.provider) parsed.provider = {};
                 configData = parsed;
                 render();
             } catch (err) {
@@ -505,11 +532,10 @@
                 out += ch;
             }
         }
-
-        out = out.replace(/,\s*([\]}])/g, '$1');
-        return JSON.parse(out);
+        return JSON.parse(out.replace(/,\s*([\]}])/g, '$1'));
     }
 
+    // --- 渲染引擎 ---
     function render() {
         const container = document.getElementById('providersList');
         container.innerHTML = '';
@@ -518,58 +544,117 @@
         const providerKeys = Object.keys(providers);
 
         if (providerKeys.length === 0) {
-            container.innerHTML = '<div class="empty-hint">暂无配置数据。支持选择文件、拖入文件或点击添加平台。</div>';
+            container.innerHTML = '<div class="empty-hint">暂无配置数据。支持选择文件、拖入文件或点击“添加平台”。</div>';
             return;
         }
 
         providerKeys.forEach(pName => {
-            const provider = providers[pName];
+            const provider = providers[pName] || {};
             const models = provider.models || {};
             const baseURL = provider.options?.baseURL || '';
 
             const card = document.createElement('div');
             card.className = 'provider-card';
-            card.dataset.provider = pName.toLowerCase();
+            card.dataset.providerKey = pName;
+            card.dataset.search = pName.toLowerCase();
 
-            // 头部：名称与操作紧凑融为一行
+            // 头部：仅把手可触发排序拖拽，避免干扰内部 input 文字框选
             card.innerHTML = `
                 <div class="provider-header">
                     <div class="provider-title-bar">
-                        <input type="text" class="provider-name-input" value="${escapeHtml(pName)}" title="点击修改平台名称"
-                            onchange="updateProviderName('${escapeJs(pName)}', this.value)">
+                        <span class="drag-handle" draggable="true" title="按住拖拽调整平台排序">⋮⋮</span>
+                        <input type="text" class="provider-name-input" value="${escapeHtml(pName)}" title="修改平台名称"
+                            draggable="false">
                         <div class="header-icon-btns">
-                            <button class="icon-btn btn-add-model" title="添加模型" onclick="addModel('${escapeJs(pName)}')">➕ 模型</button>
-                            <button class="icon-btn btn-del-platform" title="删除平台" onclick="deleteProvider('${escapeJs(pName)}')">🗑️</button>
+                            <button class="icon-btn btn-add-model" title="添加模型">➕ 模型</button>
+                            <button class="icon-btn btn-del-platform" title="删除平台">🗑️</button>
                         </div>
                     </div>
-                    <input type="text" class="provider-baseurl-input" placeholder="Base URL: https://..." value="${escapeHtml(baseURL)}"
-                        onchange="updateBaseURL('${escapeJs(pName)}', this.value)">
+                    <div class="field-group">
+                        <label>Base URL</label>
+                        <input type="text" class="provider-baseurl-input" placeholder="如: https://api.openai.com/v1" 
+                            value="${escapeHtml(baseURL)}" draggable="false">
+                    </div>
                 </div>
-                <div class="models-container" id="models-${escapeCssId(pName)}"></div>
+                <div class="models-container"></div>
             `;
 
-            const modelsContainer = card.querySelector(`#models-${CSS.escape(escapeCssId(pName))}`);
+            // 事件代理与绑定
+            const nameInput = card.querySelector('.provider-name-input');
+            nameInput.addEventListener('change', (e) => updateProviderName(pName, e.target.value));
+
+            const baseUrlInput = card.querySelector('.provider-baseurl-input');
+            baseUrlInput.addEventListener('change', (e) => updateBaseURL(pName, e.target.value));
+
+            card.querySelector('.btn-add-model').addEventListener('click', () => addModel(pName));
+            card.querySelector('.btn-del-platform').addEventListener('click', () => deleteProvider(pName));
+
+            // 排序拖拽绑定（绑定至 drag-handle）
+            const handle = card.querySelector('.drag-handle');
+            handle.addEventListener('dragstart', (e) => {
+                draggingKey = pName;
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', pName);
+            });
+
+            handle.addEventListener('dragend', () => {
+                draggingKey = null;
+                card.classList.remove('dragging');
+                document.querySelectorAll('.provider-card').forEach(el => el.classList.remove('drag-over'));
+            });
+
+            card.addEventListener('dragover', (e) => {
+                if (!draggingKey || draggingKey === pName) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                card.classList.add('drag-over');
+            });
+
+            card.addEventListener('dragleave', (e) => {
+                if (card.contains(e.relatedTarget)) return;
+                card.classList.remove('drag-over');
+            });
+
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                card.classList.remove('drag-over');
+                if (draggingKey && draggingKey !== pName) {
+                    reorderProviders(draggingKey, pName);
+                }
+            });
+
+            // 渲染模型列表
+            const modelsContainer = card.querySelector('.models-container');
             const modelKeys = Object.keys(models);
 
             if (modelKeys.length === 0) {
-                modelsContainer.innerHTML = '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 10px;">暂无模型，点击上方“➕ 模型”</div>';
+                modelsContainer.innerHTML = '<div style="color: #94a3b8; font-size: 12px; text-align: center; padding: 12px 0;">暂无模型，点击上方“➕ 模型”</div>';
             } else {
                 modelKeys.forEach(mKey => {
                     const modelObj = models[mKey];
-                    const modelId = modelObj.id || mKey;
+                    const modelId = (modelObj && typeof modelObj === 'object') ? (modelObj.id || mKey) : mKey;
 
                     const mCard = document.createElement('div');
                     mCard.className = 'model-card';
-                    mCard.dataset.model = modelId.toLowerCase();
+                    mCard.dataset.search = modelId.toLowerCase();
                     mCard.innerHTML = `
-                        <div class="model-field">
+                        <div class="field-group">
                             <label>官方模型 ID</label>
                             <input type="text" class="model-input" value="${escapeHtml(modelId)}"
-                                placeholder="如: qwen/qwen3.6-plus:free"
-                                onchange="updateModelId('${escapeJs(pName)}', '${escapeJs(mKey)}', this.value)">
+                                placeholder="如: qwen/qwen3.6-plus:free" draggable="false">
                         </div>
-                        <button class="btn-del-model" title="删除模型" onclick="deleteModel('${escapeJs(pName)}', '${escapeJs(mKey)}')">✕</button>
+                        <button class="btn-del-model" title="删除模型">✕</button>
                     `;
+
+                    mCard.querySelector('.model-input').addEventListener('change', (e) => {
+                        updateModelId(pName, mKey, e.target.value);
+                    });
+
+                    mCard.querySelector('.btn-del-model').addEventListener('click', () => {
+                        deleteModel(pName, mKey);
+                    });
+
                     modelsContainer.appendChild(mCard);
                 });
             }
@@ -580,19 +665,47 @@
         filterCards();
     }
 
+    // --- 数据更新函数 ---
+    function reorderProviders(draggedKey, targetKey) {
+        const keys = Object.keys(configData.provider);
+        const fromIdx = keys.indexOf(draggedKey);
+        const toIdx = keys.indexOf(targetKey);
+
+        if (fromIdx === -1 || toIdx === -1) return;
+
+        keys.splice(fromIdx, 1);
+        keys.splice(toIdx, 0, draggedKey);
+
+        const newProviderObj = {};
+        keys.forEach(k => {
+            newProviderObj[k] = configData.provider[k];
+        });
+
+        configData.provider = newProviderObj;
+        render();
+    }
+
     function updateProviderName(oldName, newName) {
-        newName = newName.trim();
-        if (!newName || newName === oldName) {
+        const trimmed = newName.trim();
+        if (!trimmed || trimmed === oldName) {
             render();
             return;
         }
-        if (configData.provider[newName]) {
-            alert('平台名称已存在');
+        if (configData.provider[trimmed]) {
+            alert('平台名称 [' + trimmed + '] 已存在！');
             render();
             return;
         }
-        configData.provider[newName] = configData.provider[oldName];
-        delete configData.provider[oldName];
+
+        const updated = {};
+        Object.keys(configData.provider).forEach(k => {
+            if (k === oldName) {
+                updated[trimmed] = configData.provider[oldName];
+            } else {
+                updated[k] = configData.provider[k];
+            }
+        });
+        configData.provider = updated;
         render();
     }
 
@@ -624,14 +737,14 @@
     }
 
     function deleteProvider(providerName) {
-        if (confirm(`确认删除平台 [${providerName}] 及其所有模型吗？`)) {
+        if (confirm(`确认删除平台 [${providerName}] 及其全部模型吗？`)) {
             delete configData.provider[providerName];
             render();
         }
     }
 
     function addModel(providerName) {
-        const modelId = prompt('请输入官方模型 ID（如 qwen/qwen3.6-plus:free）:');
+        const modelId = prompt('请输入官方模型 ID（如: qwen/qwen3.6-plus:free）:');
         if (!modelId) return;
         const trimmed = modelId.trim();
         if (!trimmed) return;
@@ -650,23 +763,26 @@
     function updateModelId(providerName, oldModelKey, newModelId) {
         const trimmed = newModelId.trim();
         if (!trimmed) {
-            alert('官方模型 ID 不能为空');
+            alert('模型 ID 不能为空！');
             render();
             return;
         }
 
-        const models = configData.provider[providerName].models;
+        const models = configData.provider[providerName].models || {};
         delete models[oldModelKey];
         models[trimmed] = {
             "id": trimmed,
             "name": trimmed
         };
+        configData.provider[providerName].models = models;
         render();
     }
 
     function deleteModel(providerName, modelKey) {
-        delete configData.provider[providerName].models[modelKey];
-        render();
+        if (configData.provider[providerName]?.models) {
+            delete configData.provider[providerName].models[modelKey];
+            render();
+        }
     }
 
     function filterCards() {
@@ -674,12 +790,12 @@
         const providerCards = document.querySelectorAll('.provider-card');
 
         providerCards.forEach(pCard => {
-            const pName = pCard.dataset.provider;
+            const pName = pCard.dataset.search || '';
             const modelCards = pCard.querySelectorAll('.model-card');
             let hasVisibleModel = false;
 
             modelCards.forEach(mCard => {
-                const mName = mCard.dataset.model;
+                const mName = mCard.dataset.search || '';
                 if (!query || pName.includes(query) || mName.includes(query)) {
                     mCard.style.display = 'flex';
                     hasVisibleModel = true;
@@ -702,16 +818,17 @@
             "provider": {}
         };
 
-        Object.keys(configData.provider).forEach(pName => {
-            const p = configData.provider[pName];
+        const providers = Object.keys(configData.provider || {});
+        providers.forEach(pName => {
+            const p = configData.provider[pName] || {};
             const cleanModels = {};
             
             Object.keys(p.models || {}).forEach(mKey => {
                 const m = p.models[mKey];
-                const actualId = m.id || mKey;
+                const actualId = (m && typeof m === 'object' && m.id) ? m.id : mKey;
                 cleanModels[actualId] = {
                     "id": actualId,
-                    "name": actualId
+                    "name": (m && typeof m === 'object' && m.name) ? m.name : actualId
                 };
             });
 
@@ -721,33 +838,33 @@
             };
         });
 
+        // 格式化输出为规范缩进的 JSONC
         let outputText = "{\n";
-        outputText += `    "$schema": "${finalData.$schema}",\n`;
-        outputText += `    "provider": {\n`;
+        outputText += `  "$schema": "${finalData.$schema}",\n`;
+        outputText += `  "provider": {\n`;
 
-        const providers = Object.keys(finalData.provider);
         providers.forEach((pName, pIdx) => {
             const p = finalData.provider[pName];
-            outputText += `        "${pName}": {\n`;
-            outputText += `            "models": {\n`;
+            outputText += `    "${escapeJsonString(pName)}": {\n`;
+            outputText += `      "models": {\n`;
 
             const mKeys = Object.keys(p.models);
             mKeys.forEach((mKey, mIdx) => {
                 const m = p.models[mKey];
-                outputText += `                "${mKey}": {\n`;
-                outputText += `                    "id": "${m.id}",\n`;
-                outputText += `                    "name": "${m.name}"\n`;
-                outputText += `                }${mIdx < mKeys.length - 1 ? ',' : ''}\n`;
+                outputText += `        "${escapeJsonString(mKey)}": {\n`;
+                outputText += `          "id": "${escapeJsonString(m.id)}",\n`;
+                outputText += `          "name": "${escapeJsonString(m.name)}"\n`;
+                outputText += `        }${mIdx < mKeys.length - 1 ? ',' : ''}\n`;
             });
 
-            outputText += `            },\n`;
-            outputText += `            "options": {\n`;
-            outputText += `                "baseURL": "${p.options?.baseURL || ''}"\n`;
-            outputText += `            }\n`;
-            outputText += `        }${pIdx < providers.length - 1 ? ',' : ''}\n`;
+            outputText += `      },\n`;
+            outputText += `      "options": {\n`;
+            outputText += `        "baseURL": "${escapeJsonString(p.options?.baseURL || '')}"\n`;
+            outputText += `      }\n`;
+            outputText += `    }${pIdx < providers.length - 1 ? ',' : ''}\n`;
         });
 
-        outputText += `    }\n`;
+        outputText += `  }\n`;
         outputText += `}\n`;
 
         const blob = new Blob([outputText], { type: 'application/json' });
@@ -762,13 +879,21 @@
     }
 
     function escapeHtml(str) {
-        return (str || '').replace(/"/g, '&quot;');
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
-    function escapeJs(str) {
-        return (str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    }
-    function escapeCssId(str) {
-        return encodeURIComponent(str).replace(/%/g, '_');
+
+    function escapeJsonString(str) {
+        return String(str ?? '')
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\t/g, '\\t');
     }
 
     render();
