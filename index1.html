@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>文件仓库管理器 Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            /* 浅色模式变量 */
+            --primary: #007AFF;
+            --bg-body: #f5f7fa;
+            --bg-card: #ffffff;
+            --bg-hover: #f2f2f7;
+            --bg-header: rgba(255, 255, 255, 0.95);
+            --text-main: #1d1d1f;
+            --text-sub: #86868b;
+            --border: #d2d2d7;
+            --divider: #e5e5ea;
+            --input-bg: #e5e5ea;
+        }
+
+        /* 深色模式变量 */
+        [data-theme="dark"] {
+            --primary: #0A84FF;
+            --bg-body: #000000;
+            --bg-card: #1c1c1e;
+            --bg-hover: #2c2c2e;
+            --bg-header: rgba(28, 28, 30, 0.95);
+            --text-main: #f5f5f7;
+            --text-sub: #86868b;
+            --border: #38383a;
+            --divider: #2c2c2e;
+            --input-bg: #2c2c2e;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            margin: 0; padding: 0; padding-bottom: 100px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            max-width: 1000px; margin: 0 auto;
+            background: var(--bg-card); min-height: 100vh;
+            display: flex; flex-direction: column;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        @media (min-width: 768px) {
+            body { padding: 40px 20px; }
+            .container {
+                min-height: auto; border-radius: 12px;
+                box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+                overflow: hidden; border: 1px solid var(--border);
+            }
+        }
+
+        /* Header & Tools */
+        .header {
+            background: var(--bg-header); backdrop-filter: blur(10px);
+            padding: 16px 24px; border-bottom: 1px solid var(--divider);
+            position: sticky; top: 0; z-index: 90;
+        }
+
+        .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        
+        .app-title { font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+
+        /* 搜索框 */
+        .search-box {
+            position: relative; flex-grow: 1; max-width: 300px; margin: 0 15px;
+        }
+        .search-input {
+            width: 100%; padding: 8px 12px 8px 36px;
+            border-radius: 8px; border: none;
+            background: var(--input-bg); color: var(--text-main);
+            font-size: 14px; outline: none; transition: all 0.2s;
+        }
+        .search-input:focus { box-shadow: 0 0 0 2px var(--primary); }
+        .search-icon {
+            position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+            width: 16px; height: 16px; color: var(--text-sub); pointer-events: none;
+        }
+
+        /* 主题切换按钮 */
+        .theme-toggle {
+            background: none; border: none; cursor: pointer; color: var(--text-main);
+            padding: 8px; border-radius: 50%; display: flex; align-items: center;
+        }
+        .theme-toggle:hover { background: var(--bg-hover); }
+
+        /* 面包屑 */
+        .breadcrumbs {
+            display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-sub);
+            overflow-x: auto; white-space: nowrap; padding-bottom: 4px;
+        }
+        .crumb-item {
+            cursor: pointer; padding: 4px 6px; border-radius: 4px;
+            transition: background 0.2s; display: flex; align-items: center;
+        }
+        .crumb-item:hover { background: var(--bg-hover); color: var(--primary); }
+        .crumb-separator { opacity: 0.4; font-size: 10px; }
+        .crumb-active { color: var(--text-main); font-weight: 600; cursor: default; }
+        .crumb-active:hover { background: none; color: var(--text-main); }
+
+        /* Grid System */
+        .grid-header, .grid-row {
+            display: grid; grid-template-columns: 40px 1fr 100px 80px 60px;
+            gap: 12px; align-items: center; padding: 0 20px;
+        }
+
+        /* 排序表头 */
+        .grid-header {
+            height: 44px; background: var(--bg-body);
+            border-bottom: 1px solid var(--divider);
+            font-size: 12px; font-weight: 600; color: var(--text-sub);
+            user-select: none;
+        }
+        .sortable { cursor: pointer; display: flex; align-items: center; gap: 4px; transition: color 0.2s; }
+        .sortable:hover { color: var(--text-main); }
+        .sort-icon { width: 12px; height: 12px; opacity: 0; transition: opacity 0.2s; }
+        .sortable.active { color: var(--primary); }
+        .sortable.active .sort-icon { opacity: 1; }
+
+        .grid-row {
+            height: 56px; border-bottom: 1px solid var(--divider);
+            font-size: 14px; cursor: pointer; transition: background 0.1s;
+        }
+        .grid-row:hover { background-color: var(--bg-hover); }
+        .grid-row.selected { background-color: rgba(0,122,255, 0.1); }
+        .grid-row:last-child { border-bottom: none; }
+
+        .col-center { display: flex; justify-content: center; align-items: center; }
+        .col-right { text-align: right; justify-content: flex-end; display: flex; }
+        .col-name { display: flex; align-items: center; overflow: hidden; font-weight: 500; }
+        .col-name span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .col-size { font-family: "SF Mono", monospace; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--text-sub); }
+        
+        .badge {
+            font-size: 10px; padding: 2px 6px; border-radius: 4px;
+            background: var(--bg-hover); color: var(--text-sub);
+            border: 1px solid var(--border); font-weight: 600;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .grid-header, .grid-row { padding: 0 10px; grid-template-columns: 34px 1fr 70px 0px 40px; }
+            .col-type { display: none; }
+            .app-title span { display: none; } 
+        }
+
+        /* 组件样式 */
+        input[type="checkbox"] {
+            appearance: none; width: 18px; height: 18px;
+            border: 2px solid var(--text-sub); border-radius: 4px; cursor: pointer;
+        }
+        input[type="checkbox"]:checked {
+            background-color: var(--primary); border-color: var(--primary);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+        }
+
+        .btn-download {
+            width: 32px; height: 32px; border-radius: 50%; border: none;
+            background: transparent; color: var(--primary);
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-download:hover { background: rgba(0,122,255,0.1); transform: scale(1.1); }
+        /* 下载中的旋转效果 */
+        .btn-download.loading svg { animation: spin 0.8s linear infinite; }
+
+        .icon-svg { width: 22px; height: 22px; margin-right: 10px; flex-shrink: 0; }
+        .icon-folder { color: #FFCC00; }
+        .icon-file { color: var(--text-sub); }
+
+        /* 底部条 */
+        .bottom-bar {
+            position: fixed; bottom: 24px; left: 50%; transform: translate(-50%, 150%);
+            width: 90%; max-width: 500px;
+            background: rgba(28, 28, 30, 0.9); backdrop-filter: blur(20px);
+            color: white; padding: 12px 20px; border-radius: 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3); z-index: 99;
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .bottom-bar.visible { transform: translate(-50%, 0); }
+        .btn-main { background: var(--primary); border: none; color: white; padding: 8px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+        /* Lightbox (灯箱) */
+        .lightbox {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95); z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .lightbox.active { opacity: 1; pointer-events: auto; }
+        .lightbox-img { max-width: 90%; max-height: 85vh; object-fit: contain; border-radius: 4px; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .lightbox-controls { position: absolute; width: 100%; height: 100%; top: 0; left: 0; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+        .lb-btn { pointer-events: auto; background: rgba(255,255,255,0.1); border: none; color: white; padding: 20px; cursor: pointer; font-size: 24px; transition: background 0.2s; }
+        .lb-btn:hover { background: rgba(255,255,255,0.2); }
+        .lb-close { position: absolute; top: 20px; right: 20px; font-size: 30px; background: none; border: none; color: white; cursor: pointer; z-index: 2001; }
+        .lb-caption { position: absolute; bottom: 20px; color: #ccc; font-size: 14px; font-family: monospace; }
+
+        /* Loading */
+        .loading-state { padding: 80px 0; text-align: center; color: var(--text-sub); }
+        .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <div class="header-top">
+            <div class="app-title">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span>文件仓库</span>
+            </div>
+            
+            <div class="search-box">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" class="search-input" id="search-input" placeholder="全局搜索文件..." oninput="handleSearch(this.value)">
+            </div>
+
+            <button class="theme-toggle" onclick="toggleTheme()" title="切换深色模式">
+                <svg id="theme-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </button>
+        </div>
+        
+        <div class="breadcrumbs" id="breadcrumbs"></div>
+    </div>
+
+    <div class="grid-header">
+        <div class="col-center"><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></div>
+        <div class="sortable" onclick="toggleSort('name')" data-col="name">
+            名称 <svg class="sort-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/></svg>
+        </div>
+        <div class="col-right sortable" onclick="toggleSort('size')" data-col="size">
+            大小 <svg class="sort-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/></svg>
+        </div>
+        <div class="col-center col-type sortable" onclick="toggleSort('type')" data-col="type">
+            类型 <svg class="sort-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/></svg>
+        </div>
+        <div class="col-center">下载</div>
+    </div>
+
+    <div id="loading" class="loading-state">
+        <div class="spinner"></div>
+        <div>连接 GitHub API...</div>
+    </div>
+
+    <div id="file-list"></div>
+    
+    <div style="padding: 20px; text-align: center; font-size: 12px; color: var(--text-sub);">
+        API Provided by GitHub
+    </div>
+</div>
+
+<div class="bottom-bar" id="bottom-bar">
+    <div>
+        <div id="batch-count" style="font-weight:600; font-size:14px;">已选 0 项</div>
+        <div style="font-size:11px; opacity:0.7">支持多层级打包</div>
+    </div>
+    <button class="btn-main" onclick="downloadBatch()">打包下载</button>
+</div>
+
+<div class="lightbox" id="lightbox">
+    <button class="lb-close" onclick="closeLightbox()">×</button>
+    <div class="lightbox-controls">
+        <button class="lb-btn" onclick="prevImage()">❮</button>
+        <button class="lb-btn" onclick="nextImage()">❯</button>
+    </div>
+    <img src="" class="lightbox-img" id="lb-img">
+    <div class="lb-caption" id="lb-caption">Image 1 / 5</div>
+</div>
+
+<script>
+    // ================= 配置区域 =================
+    const config = {
+        owner: 'SimonToo',
+        repo: 'web',
+        baseUrl: 'https://web.tuchong.tk/'
+    };
+    // ===========================================
+
+    // 全局状态
+    let allFiles = [];      
+    let currentViewFiles = []; 
+    let currentPath = "";
+    let selectedPaths = new Set();
+    let defaultBranch = "main";
+    
+    // 状态控制
+    let sortState = { col: 'name', dir: 'asc' }; 
+    let searchQuery = "";
+    let lbCurrentIndex = -1;
+
+    // 图标 SVG
+    const icons = {
+        folder: `<svg class="icon-svg icon-folder" viewBox="0 0 24 24" fill="currentColor"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>`,
+        file: `<svg class="icon-svg icon-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>`,
+        download: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
+        loading: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>`
+    };
+
+    // 初始化
+    async function init() {
+        loadTheme(); 
+        try {
+            const repoRes = await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}`);
+            const repoInfo = await repoRes.json();
+            defaultBranch = repoInfo.default_branch;
+
+            const treeRes = await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}/git/trees/${defaultBranch}?recursive=1`);
+            const treeData = await treeRes.json();
+
+            allFiles = treeData.tree.filter(item => item.type === 'blob');
+            
+            document.getElementById('loading').style.display = 'none';
+            renderList("");
+
+            document.addEventListener('keydown', (e) => {
+                if (!document.getElementById('lightbox').classList.contains('active')) return;
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') prevImage();
+                if (e.key === 'ArrowRight') nextImage();
+            });
+
+        } catch (error) {
+            document.getElementById('loading').innerHTML = `<div style="color:red">加载失败: ${error.message}</div>`;
+        }
+    }
+
+    // --- 核心渲染逻辑 ---
+    function renderList(path) {
+        currentPath = path;
+        updateBreadcrumbs();
+        updateSortUI();
+        
+        document.getElementById('select-all').checked = false;
+        updateBatchUI();
+
+        const listEl = document.getElementById('file-list');
+        listEl.innerHTML = '';
+
+        let itemsToShow = [];
+
+        if (searchQuery) {
+            itemsToShow = allFiles.filter(f => f.path.toLowerCase().includes(searchQuery.toLowerCase()))
+                                  .map(f => ({ ...f, type: 'file', displayName: f.path }));
+        } else {
+            const folders = new Set();
+            const files = [];
+            
+            allFiles.forEach(file => {
+                if (path === "" || file.path.startsWith(path + "/")) {
+                    let relative = path === "" ? file.path : file.path.substring(path.length + 1);
+                    const parts = relative.split('/');
+                    if (parts.length > 1) folders.add(parts[0]);
+                    else files.push({ ...file, displayName: parts[0] });
+                }
+            });
+
+            Array.from(folders).forEach(f => {
+                itemsToShow.push({ path: path ? path + "/" + f : f, type: 'folder', displayName: f, size: 0 });
+            });
+            files.forEach(f => itemsToShow.push({ ...f, type: 'file' }));
+        }
+
+        itemsToShow.sort((a, b) => {
+            if (!searchQuery && a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            let valA, valB;
+            switch(sortState.col) {
+                case 'name': valA = a.displayName; valB = b.displayName; break;
+                case 'size': valA = a.size || 0; valB = b.size || 0; break;
+                case 'type': valA = getExt(a.displayName); valB = getExt(b.displayName); break;
+            }
+            if (valA < valB) return sortState.dir === 'asc' ? -1 : 1;
+            if (valA > valB) return sortState.dir === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        currentViewFiles = itemsToShow.filter(i => i.type === 'file');
+
+        if (itemsToShow.length === 0) {
+            listEl.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-sub);">未找到文件</div>`;
+            return;
+        }
+
+        itemsToShow.forEach(item => {
+            const isFolder = item.type === 'folder';
+            const isSelected = selectedPaths.has(item.path);
+            const ext = isFolder ? 'DIR' : getExt(item.displayName);
+            
+            const div = document.createElement('div');
+            div.className = `grid-row ${isSelected ? 'selected' : ''}`;
+            
+            let clickAction = "";
+            if (isFolder) clickAction = `renderList('${item.path}')`;
+            else if (isImage(item.displayName)) clickAction = `openLightboxByPath('${item.path}')`;
+            else clickAction = `window.open('${config.baseUrl}${item.path}', '_blank')`;
+
+            div.innerHTML = `
+                <div class="col-center">
+                    <input type="checkbox" data-path="${item.path}" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${item.path}')" onclick="event.stopPropagation()">
+                </div>
+                <div class="col-name" onclick="${clickAction}">
+                    ${isFolder ? icons.folder : icons.file} 
+                    <span title="${item.displayName}">${item.displayName}</span>
+                </div>
+                <div class="col-size col-right">${isFolder ? '-' : formatSize(item.size)}</div>
+                <div class="col-center col-type"><span class="badge">${ext}</span></div>
+                <div class="col-center">
+                    ${!isFolder ? `
+                    <button class="btn-download" onclick="event.stopPropagation(); downloadSingle('${item.path}', '${item.displayName}', this)" title="下载">
+                        ${icons.download}
+                    </button>` : ''}
+                </div>
+            `;
+            listEl.appendChild(div);
+        });
+    }
+
+    // --- 修复功能：清空搜索并回首页 ---
+    function clearSearchAndHome() {
+        searchQuery = "";
+        document.getElementById('search-input').value = "";
+        renderList("");
+    }
+
+    function handleSearch(val) {
+        searchQuery = val.trim();
+        renderList(""); 
+    }
+
+    function toggleSort(col) {
+        if (sortState.col === col) {
+            sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            sortState.col = col;
+            sortState.dir = 'asc';
+        }
+        renderList(currentPath);
+    }
+
+    function updateSortUI() {
+        document.querySelectorAll('.sortable').forEach(el => {
+            el.classList.remove('active');
+            if (el.dataset.col === sortState.col) {
+                el.classList.add('active');
+                const svg = el.querySelector('svg');
+                svg.style.transform = sortState.dir === 'asc' ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        });
+    }
+
+    function updateBreadcrumbs() {
+        const el = document.getElementById('breadcrumbs');
+        // 关键修复：首页点击调用 clearSearchAndHome
+        let html = `<div class="crumb-item ${currentPath === "" && !searchQuery ? "crumb-active" : ""}" onclick="clearSearchAndHome()">🏠 首页</div>`;
+        
+        if (currentPath && !searchQuery) {
+            const parts = currentPath.split('/');
+            let buildPath = "";
+            parts.forEach((p, index) => {
+                buildPath += (index === 0 ? "" : "/") + p;
+                html += `<span class="crumb-separator">/</span>`;
+                const isActive = index === parts.length - 1;
+                html += `<div class="crumb-item ${isActive ? "crumb-active" : ""}" onclick="renderList('${buildPath}')">${p}</div>`;
+            });
+        } else if (searchQuery) {
+            html += `<span class="crumb-separator">/</span><div class="crumb-item crumb-active">🔍 搜索: "${searchQuery}"</div>`;
+        }
+        el.innerHTML = html;
+    }
+
+    function toggleTheme() {
+        const body = document.body;
+        const current = body.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        body.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        updateThemeIcon(next);
+    }
+
+    function loadTheme() {
+        const saved = localStorage.getItem('theme') || 'light';
+        document.body.setAttribute('data-theme', saved);
+        updateThemeIcon(saved);
+    }
+
+    function updateThemeIcon(theme) {
+        const svg = document.getElementById('theme-icon');
+        if (theme === 'dark') {
+            svg.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+        } else {
+            svg.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+        }
+    }
+
+    function isImage(filename) {
+        return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(filename);
+    }
+
+    function openLightboxByPath(path) {
+        const idx = currentViewFiles.findIndex(f => f.path === path);
+        if (idx !== -1) openLightbox(idx);
+    }
+
+    function openLightbox(index) {
+        lbCurrentIndex = index;
+        updateLightboxImage();
+        document.getElementById('lightbox').classList.add('active');
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+    }
+
+    function updateLightboxImage() {
+        const file = currentViewFiles[lbCurrentIndex];
+        const img = document.getElementById('lb-img');
+        const cap = document.getElementById('lb-caption');
+        img.src = getRawUrl(file.path);
+        cap.innerText = `${file.displayName} (${lbCurrentIndex + 1} / ${currentViewFiles.length})`;
+    }
+
+    function nextImage() {
+        if (lbCurrentIndex < currentViewFiles.length - 1) {
+            lbCurrentIndex++; updateLightboxImage();
+        }
+    }
+
+    function prevImage() {
+        if (lbCurrentIndex > 0) {
+            lbCurrentIndex--; updateLightboxImage();
+        }
+    }
+
+    function toggleSelect(path) {
+        if (selectedPaths.has(path)) selectedPaths.delete(path);
+        else selectedPaths.add(path);
+        const cb = document.querySelector(`input[data-path="${path}"]`);
+        if (cb) {
+            cb.checked = selectedPaths.has(path);
+            cb.closest('.grid-row').classList.toggle('selected', selectedPaths.has(path));
+        }
+        updateBatchUI();
+    }
+
+    function toggleSelectAll() {
+        const cbs = document.querySelectorAll('input[data-path]');
+        const isChecked = document.getElementById('select-all').checked;
+        cbs.forEach(cb => {
+            const path = cb.getAttribute('data-path');
+            if (isChecked) selectedPaths.add(path); else selectedPaths.delete(path);
+            cb.checked = isChecked;
+            cb.closest('.grid-row').classList.toggle('selected', isChecked);
+        });
+        updateBatchUI();
+    }
+
+    function updateBatchUI() {
+        const bar = document.getElementById('bottom-bar');
+        if (selectedPaths.size > 0) {
+            bar.classList.add('visible');
+            document.getElementById('batch-count').innerText = `已选 ${selectedPaths.size} 项`;
+        } else {
+            bar.classList.remove('visible');
+        }
+    }
+
+    function getExt(name) {
+        return name.split('.').pop().toUpperCase();
+    }
+
+    function formatSize(bytes) {
+        if (!bytes) return '-';
+        const k = 1024; const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + ['B', 'KB', 'MB', 'GB'][i];
+    }
+
+    function getRawUrl(path) {
+        const encoded = path.split('/').map(encodeURIComponent).join('/');
+        return `https://raw.githubusercontent.com/${config.owner}/${config.repo}/${defaultBranch}/${encoded}`;
+    }
+
+    // --- 修复后的单文件下载（使用 Blob 强制下载） ---
+    async function downloadSingle(path, name, btnElement) {
+        // UI 反馈
+        const originalContent = btnElement.innerHTML;
+        btnElement.classList.add('loading');
+        btnElement.innerHTML = icons.loading;
+
+        try {
+            const url = getRawUrl(path);
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network error');
+            const blob = await res.blob();
+            
+            // 创建 Blob URL 并点击下载
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(blobUrl);
+
+        } catch(e) {
+            alert('下载失败: ' + e.message);
+        } finally {
+            // 恢复按钮状态
+            btnElement.classList.remove('loading');
+            btnElement.innerHTML = originalContent;
+        }
+    }
+
+    async function downloadBatch() {
+        if (selectedPaths.size === 0) return;
+        const zip = new JSZip();
+        const filesToDl = [];
+        const selection = Array.from(selectedPaths);
+        allFiles.forEach(f => {
+            let include = false;
+            if (selectedPaths.has(f.path)) include = true;
+            else {
+                for (let s of selection) if (f.path.startsWith(s + '/')) { include = true; break; }
+            }
+            if (include) filesToDl.push(f);
+        });
+
+        if (filesToDl.length === 0) { alert("无文件可下载"); return; }
+        
+        const btn = document.querySelector('.btn-main');
+        const originText = btn.innerText;
+        btn.innerText = "打包中..."; btn.disabled = true;
+
+        let count = 0; const BATCH = 5;
+        for (let i=0; i<filesToDl.length; i+=BATCH) {
+            await Promise.all(filesToDl.slice(i, i+BATCH).map(async f => {
+                try {
+                    const res = await fetch(getRawUrl(f.path));
+                    if(res.ok) zip.file(f.path, await res.blob());
+                } catch(e) {}
+                count++; btn.innerText = `下载中 ${count}/${filesToDl.length}`;
+            }));
+        }
+
+        btn.innerText = "压缩中...";
+        const blob = await zip.generateAsync({type:"blob"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `files_${Date.now()}.zip`;
+        document.body.appendChild(a); a.click();
+        btn.innerText = originText; btn.disabled = false;
+    }
+
+    init();
+</script>
+</body>
+</html>
