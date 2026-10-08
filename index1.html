@@ -285,7 +285,8 @@
     const config = {
         owner: 'SimonToo',
         repo: 'web',
-        baseUrl: 'https://web.tuchong.tk/'
+        // 自动获取当前访问的基础路径（同时适配独立根域名以及二级目录访问，结尾补齐 '/'）
+        baseUrl: window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/')
     };
     // ===========================================
 
@@ -462,7 +463,6 @@
 
     function updateBreadcrumbs() {
         const el = document.getElementById('breadcrumbs');
-        // 关键修复：首页点击调用 clearSearchAndHome
         let html = `<div class="crumb-item ${currentPath === "" && !searchQuery ? "crumb-active" : ""}" onclick="clearSearchAndHome()">🏠 首页</div>`;
         
         if (currentPath && !searchQuery) {
@@ -591,9 +591,8 @@
         return `https://raw.githubusercontent.com/${config.owner}/${config.repo}/${defaultBranch}/${encoded}`;
     }
 
-    // --- 修复后的单文件下载（使用 Blob 强制下载） ---
+    // --- 单文件下载（使用 Blob 强制下载） ---
     async function downloadSingle(path, name, btnElement) {
-        // UI 反馈
         const originalContent = btnElement.innerHTML;
         btnElement.classList.add('loading');
         btnElement.innerHTML = icons.loading;
@@ -604,7 +603,6 @@
             if (!res.ok) throw new Error('Network error');
             const blob = await res.blob();
             
-            // 创建 Blob URL 并点击下载
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = blobUrl;
@@ -617,7 +615,6 @@
         } catch(e) {
             alert('下载失败: ' + e.message);
         } finally {
-            // 恢复按钮状态
             btnElement.classList.remove('loading');
             btnElement.innerHTML = originalContent;
         }
