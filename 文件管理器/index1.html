@@ -81,8 +81,6 @@
             </div>
         </header>
 
-        
-
         <div class="flex flex-col gap-4 mb-4 bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100">
             <div class="flex flex-wrap gap-2 items-center">
                 <button onclick="document.getElementById('fileInputBatch').click()" class="px-5 py-2.5 bg-blue-600 text-white text-[10px] font-black rounded-xl uppercase shadow-md clickable">批量上传</button>
@@ -137,8 +135,6 @@
         <div id="ace-editor"></div>
     </div>
 </div>
-
-
 
 <input type="hidden" id="owner">
 <input type="hidden" id="repo">
@@ -552,7 +548,10 @@
             const timeStr = file.modified_at ? new Date(file.modified_at).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(/\//g,'-') : '读取中...';
             const sizeStr = isDir ? '--' : (file.size/1024).toFixed(1) + ' KB';
             const isChecked = selectedItems.some(i => i.path === file.path);
-            const previewUrl = `https://web.tuchong.tk/${file.path}`;
+            
+            // 动态获取当前访问的基础路径，兼容根域名与二级子目录路径
+            const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+            const previewUrl = `${baseUrl}${file.path}`;
 
             const li = document.createElement('li');
             li.className = `file-item p-4 grid-layout clickable ${isChecked ? 'checked-row' : ''}`;
