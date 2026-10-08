@@ -200,7 +200,6 @@
         }
     }
 
-    // 别名 - 保留向后兼容
     const xorEncrypt = simpleEncrypt;
     const xorDecrypt = simpleDecrypt;
 
@@ -274,7 +273,6 @@
 
     // --- 初始化 ---
     window.onload = async () => {
-        // 尝试API模式（本地服务器）
         const apiBase = window.location.origin;
         try {
             const testRes = await fetch(`${apiBase}/api/users`, {method: 'GET'});
@@ -285,13 +283,11 @@
                 throw new Error('不是有效的API响应');
             }
         } catch (e) {
-            // API不可用，切换到本地sql.js模式（GitHub Pages或本地文件）
             console.log('API不可用，使用本地sql.js模式:', e.message);
             loginMode = 'local';
             await initDatabase();
         }
 
-        // 统一的登录处理函数
         const handleLogin = async () => {
             if (isLoggingIn) return;
             isLoggingIn = true;
@@ -314,30 +310,25 @@
             }
         };
 
-        // 绑定登录按钮点击
         document.getElementById('login-btn').addEventListener('click', handleLogin);
 
-        // 绑定表单提交（回车键）
         document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
             handleLogin();
         });
 
-        // 绑定密码框回车键
         document.getElementById('login-password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 handleLogin();
             }
         });
 
-        // 用户名框回车键
         document.getElementById('login-username').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 document.getElementById('login-password').focus();
             }
         });
 
-        // 恢复登录状态
         const savedUser = localStorage.getItem('logged_user');
         if (savedUser) {
             currentUser = JSON.parse(savedUser);
@@ -387,41 +378,22 @@
     };
 
     async function initDatabase() {
-        // 尝试多个可能的数据库路径
         const dbPaths = ['./api.db', 'api.db', '../api.db', '/api.db'];
 
         for (const dbPath of dbPaths) {
             console.log(`尝试加载数据库: ${dbPath}`);
             try {
                 const response = await fetch(dbPath, { mode: 'cors' });
-                console.log(`${dbPath} 响应状态: ${response.status}, 类型: ${response.headers.get('content-type')}`);
-
-                if (!response.ok) {
-                    console.log(`${dbPath} 不可用，继续尝试下一个...`);
-                    continue;
-                }
+                if (!response.ok) continue;
 
                 const buffer = await response.arrayBuffer();
-                console.log(`${dbPath} 文件大小: ${buffer.byteLength} bytes`);
+                if (buffer.byteLength === 0) continue;
 
-                if (buffer.byteLength === 0) {
-                    console.log(`${dbPath} 文件为空，继续...`);
-                    continue;
-                }
-
-                // 检查文件头标识SQLite数据库
                 const header = new Uint8Array(buffer.slice(0, 16));
                 const isSQLite = header[0] === 0x53 && header[1] === 0x51 && header[2] === 0x4c && header[3] === 0x69;
-                console.log(`是否为SQLite数据库: ${isSQLite}`);
+                if (!isSQLite) continue;
 
-                if (!isSQLite) {
-                    console.log(`${dbPath} 不是有效的SQLite数据库文件，继续...`);
-                    continue;
-                }
-
-                console.log('加载sql.js...');
                 const SQL = await initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` });
-                console.log('sql.js加载成功');
                 db = new SQL.Database(new Uint8Array(buffer));
                 console.log('本地数据库加载成功！');
                 return true;
@@ -432,7 +404,7 @@
         }
 
         console.error('所有数据库路径都加载失败');
-        alert('数据库加载失败！\n\n可能原因：\n1. api.db文件未上传到GitHub仓库\n2. 文件路径不正确\n\n请确保：\n- api.db文件已上传到仓库根目录\n- 与文件管理器.html在同一目录');
+        alert('数据库加载失败！\n\n请确保：\n- api.db文件已上传到仓库根目录');
         return false;
     }
 
@@ -440,7 +412,6 @@
         document.getElementById('login-page').style.display = 'none';
         document.getElementById('main-content').classList.remove('hidden');
         document.getElementById('user-display').innerHTML = `<i class="fas fa-user-circle mr-1"></i>${currentUser.username}`;
-        // 只在API模式下显示用户管理按钮
         if (loginMode === 'api') {
             document.getElementById('admin-btn').classList.remove('hidden');
         }
@@ -456,7 +427,7 @@
         location.reload();
     }
 
-    // --- 文件管理器原有功能 ---
+    // --- 文件管理器功能 ---
     let currentPath = localStorage.getItem('gh_last_path') || "";
     let allFiles = [], sortConfig = { key: 'name', dir: 'asc' };
     let editor, activeFile, selectedItems = [], clipboard = { items: [], action: null };
@@ -549,9 +520,8 @@
             const sizeStr = isDir ? '--' : (file.size/1024).toFixed(1) + ' KB';
             const isChecked = selectedItems.some(i => i.path === file.path);
             
-            // 动态获取当前访问的基础路径，兼容根域名与二级子目录路径
-            const baseUrl = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
-            const previewUrl = `${baseUrl}${file.path}`;
+            // 直接以当前浏览器的根域名进行拼接，避免多出层级路径[cite: 2]
+            const previewUrl = `${window.location.origin}/${file.path}`;
 
             const li = document.createElement('li');
             li.className = `file-item p-4 grid-layout clickable ${isChecked ? 'checked-row' : ''}`;
@@ -804,14 +774,12 @@
 
         document.getElementById('token-update-modal').classList.remove('hidden');
 
-        // 绑定回车键提交
         const tokenForm = document.getElementById('token-form');
         tokenForm.onsubmit = (e) => {
             e.preventDefault();
             submitTokenUpdate();
         };
 
-        // Token输入框回车提交
         document.getElementById('update-token').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 submitTokenUpdate();
@@ -835,7 +803,6 @@
         const repo = document.getElementById('update-repo').value.trim();
         const token = document.getElementById('update-token').value.trim();
 
-        // 如果是修改自己的Token，自动使用当前登录密码
         if (currentUser && String(currentUser.id) === String(userId) && currentPassword && !userPassword) {
             userPassword = currentPassword;
         }
@@ -893,14 +860,12 @@
 
         document.getElementById('password-update-modal').classList.remove('hidden');
 
-        // 绑定回车键提交
         const passwordForm = document.getElementById('password-form');
         passwordForm.onsubmit = (e) => {
             e.preventDefault();
             submitPasswordUpdate();
         };
 
-        // 最后一个输入框回车提交
         document.getElementById('change-confirm-password').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 submitPasswordUpdate();
@@ -975,7 +940,7 @@
         }
     }
 
-    // --- API登录函数（优先使用） ---
+    // --- API登录函数 ---
     async function doLoginAPI() {
         const username = document.getElementById('login-username').value.trim();
         const password = document.getElementById('login-password').value.trim();
@@ -1019,8 +984,7 @@
         }
     }
 
-    // --- 登录模式选择 ---
-    let loginMode = 'api'; // 'api' 或 'local'
+    let loginMode = 'api';
 </script>
 
 <!-- 用户管理模态框 -->
