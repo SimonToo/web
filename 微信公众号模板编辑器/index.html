@@ -738,7 +738,7 @@ async function loadModels(password) {
   var SQL = await initSqlJs({
     locateFile: function(f) { return 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/' + f; }
   });
-  var resp = await fetch('https://web.tuchong.tk/大模型API调试与管理工具/model.db.enc');
+  var resp = await fetch('https://web.thm.dpdns.org/大模型API调试与管理工具/model.db.enc');
   if (!resp.ok) throw new Error('无法加载数据库 (HTTP ' + resp.status + ')');
   var encrypted = new Uint8Array(await resp.arrayBuffer());
   var decrypted = await decryptBytes(encrypted, password);
