@@ -14,13 +14,15 @@ var WECHAT_PROMPT = {
     '返回可直接展示的HTML代码，不要用markdown代码块包裹，不要DOCTYPE/html/head/body',
     '不能有javascript',
     '字体使用微信支持的：-apple-system, PingFang SC, Microsoft YaHei',
-    '内容宽度适配 375px 以内的手机屏幕',
+    '最外层容器必须是 <section data-role="outer" style="width:100%;max-width:100%;box-sizing:border-box;margin:0 auto;">，宽度自适应容器',
+    '禁止使用固定像素宽度（如 width:375px、width:677px、width:750px），所有宽度一律用 100% 或百分比，图片用 max-width:100%',
     '❗ 必须完整保留用户的所有文字内容，不得精简、提炼、改写、删减或概括',
     '将用户内容完整展示在模板中，可分段排版但不可遗漏任何文字'
   ],
 
   // 禁止的CSS
   forbiddenCSS: [
+    '固定宽度: width:375px / 677px / 750px ❌（宽度一律用 100% 或百分比）',
     'display:flex / display:grid / display:inline-flex ❌',
     '<br> 标签 ❌（用独立的 <p> 或 <section> 代替换行）',
     'box-shadow ❌（用 border 代替）',
@@ -46,7 +48,7 @@ var WECHAT_PROMPT = {
 
   // 模板结构规范
   structureRules: [
-    '使用 <section data-role="outer" style="background-color:#...;"> 作为最外层容器',
+    '使用 <section data-role="outer" style="width:100%;max-width:100%;box-sizing:border-box;margin:0 auto;background-color:#...;"> 作为最外层容器',
     '内部用 <section data-role="paragraph" style="..."> 包裹每一段内容块',
     '不要嵌套过多的section层级，保持扁平'
   ],
@@ -146,6 +148,7 @@ var WECHAT_PROMPT = {
     // Overall
     lines.push('## 整体要求');
     lines.push('- 风格统一，控制在2-3个主题色内（主色+辅色+中性色），颜色用6位hex');
+    lines.push('- 所有宽度使用 100% 或百分比，禁止固定像素宽度');
     lines.push('- 每个内容块前后确保有适当的间距（margin）');
     lines.push('- 不要用任何禁止的CSS属性');
     lines.push('- 根据文章内容自动判断需要多少图片位（至少3个），放置占位图');
