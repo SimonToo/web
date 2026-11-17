@@ -10,7 +10,7 @@ var WECHAT_PROMPT = {
   // 核心规则
   coreRules: [
     '所有样式必须内联（微信编辑器会过滤外部样式和style标签）',
-    '图片使用占位图: https://web.tuchong.tk/微信公众号模板编辑器/占位图.jpg',
+    '图片使用占位图: https://web.thm.dpdns.org/微信公众号模板编辑器/占位图.jpg',
     '返回可直接展示的HTML代码，不要用markdown代码块包裹，不要DOCTYPE/html/head/body',
     '不能有javascript',
     '字体使用微信支持的：-apple-system, PingFang SC, Microsoft YaHei',
@@ -62,7 +62,7 @@ var WECHAT_PROMPT = {
 
   // 图片规范
   imageTemplate: '<section style="margin:12px 0;text-align:center;">' +
-    '<img src="https://web.tuchong.tk/微信公众号模板编辑器/占位图.jpg" style="width:100%;max-width:100% !important;border-radius:6px;display:block;" draggable="false"/>' +
+    '<img src="https://web.thm.dpdns.org/微信公众号模板编辑器/占位图.jpg" style="width:100%;max-width:100% !important;border-radius:6px;display:block;" draggable="false"/>' +
     '</section>',
 
   // 构建完整提示词
