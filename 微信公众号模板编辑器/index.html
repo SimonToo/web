@@ -137,6 +137,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC'
   word-wrap: break-word; overflow-wrap: break-word;
   overflow: visible;
 }
+/* 统一最外层宽度：避免不同模型写 max-width:375px / 100% 导致预览忽宽忽窄 */
+.editor-content > section { width: 100% !important; max-width: 100% !important; box-sizing: border-box; margin-left: auto; margin-right: auto; }
 .editor-content img { max-width: 100%; height: auto; display: block; margin: 12px 0; border-radius: 4px; cursor: pointer; transition: box-shadow 0.2s; }
 .editor-content img[data-selected] { box-shadow: 0 0 0 3px var(--primary); }
 .editor-content .img-wrap { position: relative; display: inline-block; max-width: 100%; margin: 12px 0; }
@@ -1065,7 +1067,7 @@ async function generateTemplate() {
     }
 
     // Complete
-    editor.innerHTML = previewHtml(result.content);
+    editor.innerHTML = finalizeHtml(result.content);
     isHtmlView = false;
     deselectImage();
     pushHistoryForce();
@@ -1374,6 +1376,46 @@ function previewHtml(text) {
   return sanitizeContent(cleanModelOutput(text));
 }
 
+// 统一最外层宽度：无论模型写成 max-width:375px / 100% / 不写，都归一化为自适应 100%
+// 用于最终渲染、复制、导出，保证三处宽度一致
+function normalizeOuterWidth(html) {
+  if (!html) return html;
+  try {
+    var doc = new DOMParser().parseFromString('<div id="__wx_root__">' + html + '</div>', 'text/html');
+    var root = doc.getElementById('__wx_root__');
+    if (!root) return html;
+    var top = Array.prototype.slice.call(root.children);
+    if (!top.length) return html;
+
+    var outer;
+    if (top.length === 1 && top[0].tagName !== 'IMG') {
+      outer = top[0];
+    } else {
+      // 多个顶层节点：包一层统一容器
+      outer = doc.createElement('section');
+      outer.setAttribute('data-role', 'outer');
+      while (root.firstChild) outer.appendChild(root.firstChild);
+      root.appendChild(outer);
+    }
+
+    var st = outer.style;
+    st.setProperty('width', '100%', 'important');
+    st.setProperty('max-width', '100%', 'important');
+    st.setProperty('min-width', '0', 'important');
+    st.setProperty('box-sizing', 'border-box');
+    st.setProperty('margin-left', 'auto');
+    st.setProperty('margin-right', 'auto');
+    return root.innerHTML;
+  } catch (e) {
+    return html;
+  }
+}
+
+// 生成/应用源码时使用：清理 + 安全过滤 + 宽度归一化
+function finalizeHtml(text) {
+  return normalizeOuterWidth(sanitizeContent(cleanModelOutput(text)));
+}
+
 function sanitizeContent(html) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -1532,7 +1574,7 @@ function toggleHtmlView() {
   var wrapper = document.getElementById('editorWrapper');
   var btn = document.getElementById('htmlViewBtn');
   if (isHtmlView) {
-    editor.innerHTML = sanitizeContent(getAceContent());
+    editor.innerHTML = finalizeHtml(getAceContent());
     mockup.style.display = ''; panel.style.display = 'none'; wrapper.style.background = '#fff'; isHtmlView = false;
     btn.textContent = '<\u002f> 源码';
     pushHistoryForce(); updateWordCount(); updateStatus('已应用源码并返回预览');
@@ -1550,7 +1592,7 @@ function applyHtmlSource() {
   var editor = document.getElementById('editor');
   document.getElementById('phoneMockup').style.display = '';
   document.getElementById('codePanel').style.display = 'none';
-  editor.innerHTML = sanitizeContent(getAceContent());
+  editor.innerHTML = finalizeHtml(getAceContent());
   isHtmlView = false;
   document.getElementById('htmlViewBtn').textContent = '<\u002f> 源码';
   pushHistoryForce(); updateWordCount(); showToast('HTML 已应用'); updateStatus('已应用源码修改');
@@ -1560,7 +1602,7 @@ function applyHtmlSource() {
 function exportHtml() {
   var editor = document.getElementById('editor');
   if (editor.innerText.replace(/\s/g, '') === '') return showToast('当前无内容可导出');
-  var html = wrapForWeChat(editor.innerHTML);
+  var html = wrapForWeChat(normalizeOuterWidth(editor.innerHTML));
   var blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
@@ -1586,7 +1628,7 @@ function copyHtml() {
   var editor = document.getElementById('editor');
   if (editor.innerText.replace(/\s/g, '') === '') return showToast('当前无内容可复制');
   var clean = cleanForCopy(editor);
-  var html = wrapForWeChat(clean.innerHTML);
+  var html = wrapForWeChat(normalizeOuterWidth(clean.innerHTML));
   function listener(e) { e.clipboardData.setData('text/html', html); e.clipboardData.setData('text/plain', html); e.preventDefault(); }
   document.addEventListener('copy', listener);
   var ok = false;
@@ -1662,7 +1704,7 @@ function showDraftRecovery(draft) {
 function restoreDraft() {
   if (_pendingDraft) {
     var editor = document.getElementById('editor');
-    editor.innerHTML = _pendingDraft;
+    editor.innerHTML = normalizeOuterWidth(_pendingDraft);
     pushHistoryForce();
     updateWordCount();
     updateStatus('已恢复草稿');
