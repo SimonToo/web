@@ -55,6 +55,18 @@
             white-space: nowrap;
         }
 
+        .version-badge {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--primary);
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            padding: 4px 10px;
+            white-space: nowrap;
+            display: none;
+        }
+
         .header-actions {
             display: flex;
             align-items: center;
@@ -390,12 +402,14 @@
 <div class="container">
     <header>
         <h1>OpenCode 模型配置编辑器</h1>
+        <span id="versionBadge" class="version-badge">当前识别：OpenCode 1.x</span>
         <div class="header-actions">
             <input type="text" id="searchInput" class="search-input" placeholder="🔍 搜索平台或模型 ID..." oninput="filterCards()">
             <input type="file" id="fileInput" accept=".json,.jsonc" style="display: none;">
             <button class="btn" onclick="document.getElementById('fileInput').click()">📁 选择配置</button>
             <button class="btn" onclick="addProvider()">➕ 添加平台</button>
-            <button class="btn" onclick="exportConfig()">💾 导出配置</button>
+            <button class="btn" onclick="exportConfig('v1')">💾 导出 1.x 配置</button>
+            <button class="btn" onclick="exportConfig('v2')">💾 导出 2.x 配置</button>
         </div>
     </header>
 
@@ -405,10 +419,15 @@
 <script>
     let configData = {
         "$schema": "https://opencode.ai/config.json",
+        detectedVersion: "v1",
         "provider": {}
     };
 
     let draggingKey = null;
+    let configImported = false;
+
+    // 2.x 原生格式默认使用的 provider 包
+    const DEFAULT_V2_PACKAGE = "@opencode/ai/providers/openai-compatible";
 
     // --- 文件拖入解析 ---
     const overlay = document.getElementById('globalDropOverlay');
@@ -458,14 +477,69 @@
         reader.onload = (e) => {
             try {
                 const parsed = parseJSONC(e.target.result);
-                if (!parsed.provider) parsed.provider = {};
-                configData = parsed;
+                configData = normalizeConfig(parsed);
+                configImported = true;
+                updateVersionBadge();
                 render();
             } catch (err) {
                 alert('解析文件失败，请确保格式正确：' + err.message);
             }
         };
         reader.readAsText(file, 'utf-8');
+    }
+
+    // --- 版本识别与归一化：把 1.x / 2.x 配置统一成编辑器内部格式 ---
+    // 1.x: provider / options.baseURL / models.*.id
+    // 2.x: providers / settings.baseURL / models.*.modelID
+    function normalizeConfig(raw) {
+        const root = (raw && typeof raw === 'object') ? raw : {};
+        const isV2 = !!(root.providers && typeof root.providers === 'object');
+        const source = isV2 ? root.providers : (root.provider || {});
+        const providerMap = {};
+
+        Object.keys(source || {}).forEach(pName => {
+            const p = source[pName] || {};
+            const baseURL = isV2
+                ? (p.settings?.baseURL || '')
+                : (p.options?.baseURL || p.api || '');
+            const models = {};
+            const rawModels = (p.models && typeof p.models === 'object') ? p.models : {};
+
+            Object.keys(rawModels).forEach(mKey => {
+                const m = rawModels[mKey];
+                const id = isV2
+                    ? ((m && typeof m === 'object' && m.modelID) ? m.modelID : mKey)
+                    : ((m && typeof m === 'object' && m.id) ? m.id : mKey);
+                models[id] = {
+                    id: id,
+                    name: (m && typeof m === 'object' && m.name) ? m.name : id
+                };
+            });
+
+            providerMap[pName] = {
+                // 2.x 导入时保留原 package；1.x 的 npm 一律按样例统一写默认值
+                package: isV2 ? (p.package || DEFAULT_V2_PACKAGE) : DEFAULT_V2_PACKAGE,
+                options: { baseURL: baseURL },
+                models: models
+            };
+        });
+
+        return {
+            "$schema": root.$schema || "https://opencode.ai/config.json",
+            detectedVersion: isV2 ? 'v2' : 'v1',
+            provider: providerMap
+        };
+    }
+
+    function updateVersionBadge() {
+        const badge = document.getElementById('versionBadge');
+        if (!badge) return;
+        if (!configImported) {
+            badge.style.display = 'none';
+            return;
+        }
+        badge.textContent = '当前识别：OpenCode ' + (configData.detectedVersion === 'v2' ? '2.x' : '1.x');
+        badge.style.display = 'inline-block';
     }
 
     function parseJSONC(text) {
@@ -812,55 +886,54 @@
         });
     }
 
-    function exportConfig() {
-        const finalData = {
-            "$schema": configData.$schema || "https://opencode.ai/config.json",
-            "provider": {}
-        };
+    // 按目标版本生成配置：1.x 用 provider/options/id，2.x 用 providers/settings/modelID
+    function exportConfig(version) {
+        const isV2 = version === 'v2';
+        const rootKey = isV2 ? 'providers' : 'provider';
+        const idKey = isV2 ? 'modelID' : 'id';
 
         const providers = Object.keys(configData.provider || {});
-        providers.forEach(pName => {
-            const p = configData.provider[pName] || {};
-            const cleanModels = {};
-            
-            Object.keys(p.models || {}).forEach(mKey => {
-                const m = p.models[mKey];
-                const actualId = (m && typeof m === 'object' && m.id) ? m.id : mKey;
-                cleanModels[actualId] = {
-                    "id": actualId,
-                    "name": (m && typeof m === 'object' && m.name) ? m.name : actualId
-                };
-            });
-
-            finalData.provider[pName] = {
-                "models": cleanModels,
-                "options": p.options || {}
-            };
-        });
 
         // 格式化输出为规范缩进的 JSONC
         let outputText = "{\n";
-        outputText += `  "$schema": "${finalData.$schema}",\n`;
-        outputText += `  "provider": {\n`;
+        outputText += `  "$schema": "${escapeJsonString(configData.$schema || "https://opencode.ai/config.json")}",\n`;
+        outputText += `  "${rootKey}": {\n`;
 
         providers.forEach((pName, pIdx) => {
-            const p = finalData.provider[pName];
-            outputText += `    "${escapeJsonString(pName)}": {\n`;
-            outputText += `      "models": {\n`;
+            const p = configData.provider[pName] || {};
+            const models = p.models || {};
+            const mKeys = Object.keys(models);
 
-            const mKeys = Object.keys(p.models);
+            let modelsText = `      "models": {\n`;
             mKeys.forEach((mKey, mIdx) => {
-                const m = p.models[mKey];
-                outputText += `        "${escapeJsonString(mKey)}": {\n`;
-                outputText += `          "id": "${escapeJsonString(m.id)}",\n`;
-                outputText += `          "name": "${escapeJsonString(m.name)}"\n`;
-                outputText += `        }${mIdx < mKeys.length - 1 ? ',' : ''}\n`;
+                const m = models[mKey];
+                const id = (m && typeof m === 'object' && m.id) ? m.id : mKey;
+                const name = (m && typeof m === 'object' && m.name) ? m.name : id;
+                modelsText += `        "${escapeJsonString(id)}": {\n`;
+                modelsText += `          "${idKey}": "${escapeJsonString(id)}",\n`;
+                modelsText += `          "name": "${escapeJsonString(name)}"\n`;
+                modelsText += `        }${mIdx < mKeys.length - 1 ? ',' : ''}\n`;
             });
+            modelsText += `      }`;
 
-            outputText += `      },\n`;
-            outputText += `      "options": {\n`;
-            outputText += `        "baseURL": "${escapeJsonString(p.options?.baseURL || '')}"\n`;
-            outputText += `      }\n`;
+            outputText += `    "${escapeJsonString(pName)}": {\n`;
+
+            if (isV2) {
+                // 2.x 原生格式：name → package → settings → models
+                outputText += `      "name": "${escapeJsonString(pName)}",\n`;
+                outputText += `      "package": "${escapeJsonString(p.package || DEFAULT_V2_PACKAGE)}",\n`;
+                outputText += `      "settings": {\n`;
+                outputText += `        "baseURL": "${escapeJsonString(p.options?.baseURL || '')}"\n`;
+                outputText += `      },\n`;
+                outputText += modelsText + `\n`;
+            } else {
+                // 1.x 格式：models → options
+                outputText += modelsText + `,\n`;
+                outputText += `      "options": {\n`;
+                outputText += `        "baseURL": "${escapeJsonString(p.options?.baseURL || '')}"\n`;
+                outputText += `      }\n`;
+            }
+
             outputText += `    }${pIdx < providers.length - 1 ? ',' : ''}\n`;
         });
 
@@ -896,6 +969,7 @@
             .replace(/\t/g, '\\t');
     }
 
+    updateVersionBadge();
     render();
 </script>
 
